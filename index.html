@@ -1152,6 +1152,17 @@ async function todoMutate(cohortId,studentId,fn){
   if(inMem){ await saveStudents(); } else { await sSet("students:"+cohortId,JSON.stringify(list)); }
   renderTodoView();
 }
+function todoStatusSelect(cid,sid,cur){
+  const grp=(n,a)=>'<optgroup label="'+n+'">'+a.map(o=>'<option value="'+o.key+'"'+(o.key===cur?' selected':'')+'>'+o.label+'</option>').join('')+'</optgroup>';
+  const r=STUDENT_STATUS.filter(o=>o.grp==='r'),y=STUDENT_STATUS.filter(o=>o.grp==='y'),g=STUDENT_STATUS.filter(o=>o.grp==='g');
+  const co=ssById(cur);
+  const st='min-width:96px'+(co?';'+statusFill(co.color)+';font-weight:700':'');
+  return '<select class="din" style="'+st+'" onchange="setTodoStatus(\''+cid+'\',\''+sid+'\',this.value)"><option value="">未設定</option>'+grp('紅 · 學習～交屋',r)+grp('黃 · 裝潢/出租',y)+grp('綠 · 陌開～出售',g)+'</select>';
+}
+async function setTodoStatus(cid,sid,val){
+  await todoMutate(cid,sid,x=>{x.status=val||"";});
+  const o=ssById(val); toast(val?("狀態 → "+(o?o.label:"")):"已清除狀態");
+}
 function toggleTodoGlobal(cid,sid,tid,checked){ todoMutate(cid,sid,x=>{const t=x.todos.find(z=>z.id===tid);if(t)t.done=checked;}); }
 function deleteTodoGlobal(cid,sid,tid){ if(!confirm("刪除此待辦？"))return; todoMutate(cid,sid,x=>{x.todos=x.todos.filter(z=>z.id!==tid);}); }
 function editTodoGlobal(cid,sid,tid,val){ todoMutate(cid,sid,x=>{const t=x.todos.find(z=>z.id===tid);if(t)t.text=val;}); }
@@ -1183,7 +1194,7 @@ async function renderTodoView(){
       '<td>'+esc(s.englishName||"—")+'</td>'+
       '<td>'+esc(s.lineId||"—")+'</td>'+
       '<td><div style="display:flex;align-items:flex-start;gap:6px"><textarea class="din agrow" rows="1" style="min-width:190px;resize:none'+(t.done?';text-decoration:line-through;color:var(--muted)':'')+'" oninput="autoGrow(this)" onchange="editTodoGlobal(\''+c.id+'\','+s.id+',\''+t.id+'\',this.value)">'+esc(t.text)+'</textarea><button class="tdel" title="刪除" onclick="deleteTodoGlobal(\''+c.id+'\','+s.id+',\''+t.id+'\')">\u2715</button></div></td>'+
-      '<td>'+(so?statusPill(so):'<span style="color:var(--muted)">—</span>')+'</td>'+
+      '<td>'+todoStatusSelect(c.id,s.id,s.status||"")+'</td>'+
       '<td class="cell-hide"><div class="cell-wrap">'+esc(s.currentCity||"—")+'</div></td>'+
       '<td><div class="cell-wrap">'+esc(s.desiredCity||"—")+'</div></td>'+
       '<td class="cell-hide"><div class="price-wrap">'+esc(s.price||"—")+'</div></td>'+
