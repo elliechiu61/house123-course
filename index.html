@@ -474,6 +474,14 @@
       <div class="frow"><label>成交總價</label><input type="text" id="pPrice" placeholder="例如：2000 萬"></div>
     </div>
     <div class="frow"><label>買到日期</label><input type="text" id="pDate" placeholder="例如：2026/03"></div>
+    <div class="grid2">
+      <div class="frow"><label>物件權狀坪數</label><input type="text" id="pDeed" placeholder="例如：28 坪"></div>
+      <div class="frow"><label>土地使用分區</label><input type="text" id="pZoning" placeholder="例如：住三"></div>
+    </div>
+    <div class="grid2">
+      <div class="frow"><label>土地持份坪數-建地</label><input type="text" id="pLandBuild" placeholder="例如：12 坪"></div>
+      <div class="frow"><label>土地持份坪數-道路用地</label><input type="text" id="pLandRoad" placeholder="例如：2 坪"></div>
+    </div>
   </div>
   <div class="mf"><button class="btn ghost" onclick="closePropModal()">取消</button><button class="btn primary" onclick="submitProp()">儲存</button></div>
 </div></div>
@@ -1428,7 +1436,7 @@ async function deleteStudent(){
 }
 
 /* property add/edit */
-function openPropModal(sid){ propEdit={sid,pid:null}; document.getElementById("pOwnerWrap").style.display="none"; document.getElementById("propModalTitle").textContent="新增買到的物件"; ["pAddr","pArea","pPrice","pDate"].forEach(i=>document.getElementById(i).value=""); document.getElementById("propModal").classList.add("show"); setTimeout(()=>document.getElementById("pAddr").focus(),50); }
+function openPropModal(sid){ propEdit={sid,pid:null}; document.getElementById("pOwnerWrap").style.display="none"; document.getElementById("propModalTitle").textContent="新增買到的物件"; ["pAddr","pArea","pPrice","pDate","pDeed","pZoning","pLandBuild","pLandRoad"].forEach(i=>document.getElementById(i).value=""); document.getElementById("propModal").classList.add("show"); setTimeout(()=>document.getElementById("pAddr").focus(),50); }
 function openPropModalReno(){
   if(!students.length){ toast("此班級尚無學員，請先新增學員"); return; }
   propEdit={sid:null,pid:null,fromReno:true};
@@ -1438,7 +1446,7 @@ function openPropModalReno(){
   document.getElementById("pOwnerList").classList.remove("show");
   document.getElementById("pOwnerWrap").style.display="block";
   document.getElementById("propModalTitle").textContent="新增物件";
-  ["pAddr","pArea","pPrice","pDate"].forEach(i=>document.getElementById(i).value="");
+  ["pAddr","pArea","pPrice","pDate","pDeed","pZoning","pLandBuild","pLandRoad"].forEach(i=>document.getElementById(i).value="");
   document.getElementById("propModal").classList.add("show");
   setTimeout(()=>document.getElementById("pOwnerSearch").focus(),50);
 }
@@ -1490,7 +1498,9 @@ async function submitProp(){
   if(propEdit.fromReno){ sid=document.getElementById("pOwner").value; if(!sid){toast("請選擇屋主學員");return;} }
   const s=students.find(x=>String(x.id)===String(sid)); if(!s){toast("找不到對應學員");return;}
   s.properties=s.properties||[];
-  const rec={id:"p"+Date.now(),address:addr,area:document.getElementById("pArea").value.trim(),price:document.getElementById("pPrice").value.trim(),boughtDate:document.getElementById("pDate").value.trim(),stage:0,renovNote:""};
+  const gv=id=>{const e=document.getElementById(id);return e?e.value.trim():"";};
+  const rec={id:"p"+Date.now(),address:addr,area:gv("pArea"),price:gv("pPrice"),boughtDate:gv("pDate"),stage:0,renovNote:"",
+    old:{deed:gv("pDeed"),zoning:gv("pZoning"),landBuild:gv("pLandBuild"),landRoad:gv("pLandRoad")}};
   s.properties.push(rec);
   await saveStudents(); closePropModal();
   if(document.getElementById("drawer").classList.contains("show")) openDrawer(s.id);
