@@ -398,6 +398,8 @@
     <div class="toolbar" style="margin-top:0">
       <div class="fgrp"><label style="font-size:11px;font-weight:700;color:var(--muted)">改建階段</label>
         <select id="fStage" onchange="renderReno()"><option value="all">全部階段</option></select></div>
+      <div class="fgrp"><label style="font-size:11px;font-weight:700;color:var(--muted)">陪跑標籤</label>
+        <select id="fRole" onchange="renderReno()"><option value="all">全部標籤</option><option value="純紀錄">純紀錄</option><option value="陪跑">陪跑</option><option value="主導">主導</option><option value="">未設定</option></select></div>
       <div class="spacer"></div>
       <button class="btn primary" onclick="openPropModalReno()">＋ 新增物件</button>
     </div>
@@ -561,6 +563,15 @@ const PROP_STATUS = [
   {key:"pp_jw_g",label:"交屋",color:"#164D32",grp:"g"},
   {key:"pp_cs",label:"出售",color:"#103E28",grp:"g"}
 ];
+const RENO_ROLES = [
+  {v:"純紀錄",color:"#7E93A6"},
+  {v:"陪跑",color:"#E4BC4E"},
+  {v:"主導",color:"#D6584B"}
+];
+function roleColor(v){const r=RENO_ROLES.find(x=>x.v===v);return r?r.color:"";}
+function renoRoleSelect(id,cur){
+  return '<select class="din" id="'+id+'"><option value="">未設定</option>'+RENO_ROLES.map(r=>'<option value="'+r.v+'"'+(r.v===cur?' selected':'')+'>'+r.v+'</option>').join('')+'</select>';
+}
 
 let cohorts=[], activeCohort=null, students=[], tags=[];
 let view="list", sort={key:"name",dir:1};
@@ -899,6 +910,12 @@ function optSelect(id,opts,cur){
 function shortProp(v){if(!v||v==="未填")return "";return ({"只有繼承的房子":"繼承","有":"有","無":"無","沒有":"無"}[v])||v;}
 function shortMort(v){if(!v||v==="未填")return "";return ({"科目01 購屋貸款":"01","科目04 週轉金":"04","科目01+04 都有":"01+04","無":"無"}[v])||v;}
 function ssById(k){return STUDENT_STATUS.find(x=>x.key===k);}
+function cohortShort(name){
+  const m=(''+(name||'')).match(/^第(.+?)班$/);
+  if(!m) return name||'';
+  const zh={'一':'1','二':'2','三':'3','四':'4','五':'5','六':'6','七':'7','八':'8','九':'9','十':'10'};
+  return zh[m[1]]||m[1];
+}
 function psById(k){return PROP_STATUS.find(x=>x.key===k);}
 function hexLum(h){h=(h||"#888").replace("#","");const r=parseInt(h.substr(0,2),16),g=parseInt(h.substr(2,2),16),b=parseInt(h.substr(4,2),16);return (0.299*r+0.587*g+0.114*b)/255;}
 function textOn(h){return hexLum(h)>0.62?"#16232E":"#ffffff";}
@@ -1179,7 +1196,7 @@ async function renderTodoView(){
   let html='<div class="resultline" style="margin-top:0">學員待辦項目 · 共 <b>'+rows.length+'</b> 筆（未完成 <b>'+open+'</b>）</div>';
   if(!rows.length){ el.innerHTML=html+'<div class="empty"><b>目前沒有待辦</b>到學員列表勾選學員按「＋ 新增待辦」，或在學員檔案裡新增</div>'; return; }
   html+='<div class="tablecard"><table class="tbl"><thead><tr>'+
-    '<th style="width:32px"></th><th>班別</th><th>姓名</th><th>英文</th><th>Line ID</th><th>待辦內容</th><th>Status</th>'+
+    '<th style="width:32px"></th><th style="width:2.5em">班別</th><th style="min-width:5.5em">姓名</th><th>英文</th><th>Line ID</th><th>待辦內容</th><th>Status</th>'+
     '<th class="cell-hide">居住地區</th><th>希望購入</th><th class="cell-hide">適合總價</th><th>房產</th><th>房貸</th><th>準備度</th><th class="cell-hide">物件</th>'+
     '</tr></thead><tbody>';
   rows.forEach(({c,s,t})=>{
@@ -1189,8 +1206,8 @@ async function renderTodoView(){
     const mortClass=(s.hasMortgage&&s.hasMortgage!=="無"&&s.hasMortgage!=="未填")?"y":(s.hasMortgage==="無"?"n":"");
     html+='<tr'+(t.done?' style="opacity:.5"':'')+'>'+
       '<td><input type="checkbox" '+(t.done?"checked":"")+' onchange="toggleTodoGlobal(\''+c.id+'\','+s.id+',\''+t.id+'\',this.checked)"></td>'+
-      '<td>'+esc(c.name)+'</td>'+
-      '<td style="cursor:pointer;color:var(--brand);font-weight:700" onclick="openStudentFrom(\''+c.id+'\','+s.id+')">'+esc(s.name)+'</td>'+
+      '<td title="'+esc(c.name)+'">'+esc(cohortShort(c.name))+'</td>'+
+      '<td style="cursor:pointer;color:var(--brand);font-weight:700;min-width:5.5em;white-space:normal" onclick="openStudentFrom(\''+c.id+'\','+s.id+')">'+esc(s.name)+'</td>'+
       '<td>'+esc(s.englishName||"—")+'</td>'+
       '<td>'+esc(s.lineId||"—")+'</td>'+
       '<td><div style="display:flex;align-items:flex-start;gap:6px"><textarea class="din agrow" rows="1" style="min-width:190px;resize:none'+(t.done?';text-decoration:line-through;color:var(--muted)':'')+'" oninput="autoGrow(this)" onchange="editTodoGlobal(\''+c.id+'\','+s.id+',\''+t.id+'\',this.value)">'+esc(t.text)+'</textarea><button class="tdel" title="刪除" onclick="deleteTodoGlobal(\''+c.id+'\','+s.id+',\''+t.id+'\')">\u2715</button></div></td>'+
@@ -1225,8 +1242,10 @@ function consultListHtml(s){
 }
 function renderReno(){
   const stageF=document.getElementById("fStage").value;
+  const roleEl=document.getElementById("fRole"); const roleF=roleEl?roleEl.value:"all";
   let items=allProperties();
   if(stageF!=="all") items=items.filter(x=>{const o=psById(x.p.status);return o&&o.label===stageF;});
+  if(roleF!=="all") items=items.filter(x=>(x.p.role||"")===roleF);
   const grid=document.getElementById("propgrid");
   document.getElementById("renoLine").innerHTML="共 <b>"+items.length+"</b> 件物件";
   document.getElementById("renoEmpty").style.display=items.length?"none":"block";
@@ -1234,9 +1253,11 @@ function renderReno(){
   items.forEach(({s,p})=>{
     const o=psById(p.status);
     const pill=o?'<span class="tag" style="'+statusFill(o.color)+'">'+esc(o.label)+'</span>':'<span class="stagepill">未設定狀態</span>';
+    const rc=roleColor(p.role);
+    const rolePill=p.role?'<span class="tag" style="'+statusFill(rc)+';margin-left:6px">'+esc(p.role)+'</span>':'';
     const card=document.createElement("div"); card.className="propcard"; card.onclick=()=>openProperty(s.id,p.id);
     card.innerHTML='<div class="addr">'+esc(p.address||"未填地址")+'</div>'+
-      '<div class="owner">'+esc(s.name)+(p.price?' · '+esc(p.price):'')+'</div>'+pill+
+      '<div class="owner">'+esc(s.name)+(p.price?' · '+esc(p.price):'')+'</div>'+pill+rolePill+
       (p.handoverDate?'<div class="stepwrap"><div class="lbl"><span>交屋日期</span><span>'+esc(p.handoverDate)+'</span></div></div>':'')+
       (p.agent?'<div class="stepwrap"><div class="lbl"><span>仲介</span><span>'+esc(p.agent)+'</span></div></div>':'');
     grid.appendChild(card);
@@ -1489,6 +1510,7 @@ function openProperty(sid,pid){
   document.getElementById("dMeta").textContent="屋主："+s.name;
   document.getElementById("dBody").innerHTML=
     '<div class="track"><h4>物件狀態</h4>'+propStatusSelect("rStatus",p.status||"")+'</div>'+
+    '<div class="track"><h4>陪跑標籤</h4>'+renoRoleSelect("rRole",p.role||"")+'</div>'+
     '<div class="track"><h4>物件資料</h4>'+
       '<div class="miniL">地址</div><input class="din" id="rAddr" value="'+esc(p.address||"")+'">'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">簽約日期</div><input class="din" id="rContract" value="'+esc(p.contractDate||"")+'" placeholder="2026/03"></div>'+
@@ -1567,7 +1589,7 @@ function openProperty(sid,pid){
 async function saveProperty(){
   const s=students.find(x=>x.id===renoRef.sid); const p=(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p)return;
   const g=id=>{const e=document.getElementById(id);return e?e.value:"";};
-  p.status=g("rStatus"); p.address=g("rAddr").trim(); p.contractDate=g("rContract").trim(); p.handoverDate=g("rHandover").trim();
+  p.status=g("rStatus"); p.role=g("rRole"); p.address=g("rAddr").trim(); p.contractDate=g("rContract").trim(); p.handoverDate=g("rHandover").trim();
   p.agent=g("rAgent").trim(); p.registrant=g("rRegistrant").trim(); p.price=g("rPrice").trim(); p.area=g("rArea").trim(); p.boughtDate=g("rDate").trim(); p.renovNote=g("rNote");
   p.reno=g("rReno");
   p.taxes={feeAgent:g("tFeeAgent"),deed:g("tDeed"),stamp:g("tStamp"),scriv:g("tScriv"),reg:g("tReg"),trans:g("tTrans")};
