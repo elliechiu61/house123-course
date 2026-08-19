@@ -1313,11 +1313,11 @@ function openDrawer(id){
       '<div class="grid2"><div><div class="miniL">日期</div><input class="din" id="cDate" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
       '<div><div class="miniL">形式</div><select class="din" id="cForm" onchange="document.getElementById(\'cOther\').style.display=this.value===\'其他\'?\'block\':\'none\'"><option>電話</option><option>實體</option><option>line訊息</option><option>line通話</option><option>zoom會議</option><option>其他</option></select></div></div>'+
       '<input class="din" id="cOther" placeholder="其他形式說明" style="display:none;margin-top:8px">'+
-      '<div class="miniL" style="margin-top:8px">內容</div><textarea class="din" id="cContent" style="min-height:56px" placeholder="這次諮詢的重點…"></textarea>'+
+      '<div class="miniL" style="margin-top:8px">內容</div><textarea class="din agrow" id="cContent" style="min-height:56px" oninput="autoGrow(this)" placeholder="這次諮詢的重點…"></textarea>'+
       '<button class="btn primary sm" style="margin-top:8px" onclick="addConsult()">＋ 新增諮詢紀錄</button>'+
     '</div></div>'+
     '<div class="track"><h4>標籤 <span class="mini" style="color:var(--brand);cursor:pointer" onclick="openTagMgr()">＋ 管理標籤</span></h4><div class="flagbtns" id="drawerTags">'+tagBtns+'</div></div>'+
-    '<div class="track"><h4>進度備註 / 需求</h4><textarea id="dProgress" placeholder="記錄輔導進度、下一步、卡關點…">'+esc(s.progressNote||"")+'</textarea></div>'+
+    '<div class="track"><h4>進度備註 / 需求</h4><textarea class="agrow" id="dProgress" oninput="autoGrow(this)" placeholder="記錄輔導進度、下一步、卡關點…">'+esc(s.progressNote||"")+'</textarea></div>'+
     '<div class="track"><h4>買到的物件</h4>'+propHtml+'<button class="addprop" onclick="openPropModal(\''+s.id+'\')">＋ 新增買到的物件</button></div>'+
     '<div class="track"><h4>學員資料</h4>'+
       '<div class="miniL">希望購入城市／區域</div><input class="din" id="dDesired" value="'+esc(s.desiredCity||"")+'">'+
@@ -1329,8 +1329,8 @@ function openDrawer(id){
       '<div><div class="miniL">準備度</div><input class="din" id="dReadiness" value="'+esc(s.readinessRaw||"")+'"></div></div>'+
       '<div class="miniL" style="margin-top:8px">目前居住城市／區域</div><input class="din" id="dCurrent" value="'+esc(s.currentCity||"")+'">'+
       '<div class="miniL" style="margin-top:8px">收入</div><input class="din" id="dIncome" value="'+esc(s.income||"")+'">'+
-      '<div class="miniL" style="margin-top:8px">下一步行動</div><textarea class="din" id="dAction" style="min-height:52px">'+esc(s.action||"")+'</textarea>'+
-      '<div class="miniL" style="margin-top:8px">備註</div><textarea class="din" id="dNotes" style="min-height:70px">'+esc(s.notes||"")+'</textarea>'+
+      '<div class="miniL" style="margin-top:8px">下一步行動</div><textarea class="din agrow" id="dAction" style="min-height:52px" oninput="autoGrow(this)">'+esc(s.action||"")+'</textarea>'+
+      '<div class="miniL" style="margin-top:8px">備註</div><textarea class="din agrow" id="dNotes" style="min-height:70px" oninput="autoGrow(this)">'+esc(s.notes||"")+'</textarea>'+
     '</div>';
   // mark active tag buttons
   document.querySelectorAll("#drawerTags .flagbtn").forEach(b=>{ if(b.dataset.on) b.classList.add("active"); });
