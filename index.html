@@ -354,6 +354,7 @@
       <div class="fgrp" style="flex:1;min-width:200px"><label>搜尋</label>
         <input type="text" id="fSearch" placeholder="姓名、地區、職業、備註、物件地址…" oninput="applyFilters()"></div>
       <div class="fgrp"><label>標籤</label><div class="chips" id="flagChips"></div></div>
+      <div class="fgrp"><label>STATUS</label><select id="fStatus" onchange="applyFilters()"><option value="all">全部</option></select></div>
       <div class="fgrp"><label>名下房產</label>
         <select id="fProp" onchange="applyFilters()"><option value="all">全部</option><option value="只有繼承的房子">只有繼承的房子</option><option value="有">有</option><option value="無">無</option></select></div>
       <div class="fgrp"><label>名下房貸</label>
@@ -575,7 +576,7 @@ function renoRoleSelect(id,cur){
 
 let cohorts=[], activeCohort=null, students=[], tags=[];
 let view="list", sort={key:"name",dir:1};
-let filters={search:"",tag:"all",prop:"all",mort:"all",region:"all",ready:0,price:"all",down:"all",todo:false};
+let filters={search:"",tag:"all",status:"all",prop:"all",mort:"all",region:"all",ready:0,price:"all",down:"all",todo:false};
 let selectedId=null, renoRef=null, propEdit=null, newTagColor=SWATCH[0];
 let selected=new Set();
 
@@ -671,7 +672,7 @@ async function startApp(){
     await sSet("students:c1",JSON.stringify([])); await saveCohorts();
   }
   students=await loadStudents(activeCohort);
-  buildRegionOptions(); buildStageOptions(); renderCohorts(); buildFlagChips(); render();
+  buildRegionOptions(); buildStageOptions(); buildStatusFilterOptions(); renderCohorts(); buildFlagChips(); render();
   subscribeRealtime();
   setTimeout(()=>{ if(typeof fitTable==="function") fitTable(); },300);
 }
@@ -842,10 +843,17 @@ async function delTag(id){
 /* filters */
 function buildRegionOptions(){document.getElementById("fRegion").innerHTML='<option value="all">全部</option>'+REGIONS.map(r=>'<option value="'+r+'">'+r+'</option>').join("");}
 function buildStageOptions(){const seen=new Set();const opts=PROP_STATUS.filter(o=>{if(seen.has(o.label))return false;seen.add(o.label);return true;}).map(o=>'<option value="'+o.label+'">'+o.label+'</option>').join("");document.getElementById("fStage").innerHTML='<option value="all">全部狀態</option>'+opts;}
+function buildStatusFilterOptions(){
+  const el=document.getElementById("fStatus"); if(!el) return;
+  const grp=(n,a)=>'<optgroup label="'+n+'">'+a.map(o=>'<option value="'+o.key+'">'+o.label+'</option>').join('')+'</optgroup>';
+  const r=STUDENT_STATUS.filter(o=>o.grp==='r'),y=STUDENT_STATUS.filter(o=>o.grp==='y'),g=STUDENT_STATUS.filter(o=>o.grp==='g');
+  el.innerHTML='<option value="all">全部</option>'+grp('紅 · 學習～交屋',r)+grp('黃 · 裝潢/出租',y)+grp('綠 · 陌開～出售',g)+'<option value="none">未設定</option>';
+}
 function regionOf(str){return REGIONS.filter(r=>(str||"").includes(r)||(r==="台北"&&(str||"").includes("臺北")));}
 function resetFilters(){
-  filters={search:"",tag:"all",prop:"all",mort:"all",region:"all",ready:0,price:"all",down:"all"};
+  filters={search:"",tag:"all",status:"all",prop:"all",mort:"all",region:"all",ready:0,price:"all",down:"all"};
   document.getElementById("fSearch").value=""; document.getElementById("fProp").value="all";
+  document.getElementById("fStatus").value="all";
   document.getElementById("fMort").value="all"; document.getElementById("fRegion").value="all";
   document.getElementById("fPrice").value="all"; document.getElementById("fDown").value="all";
   document.getElementById("fReady").value=0; document.getElementById("readyVal").textContent="0";
@@ -853,6 +861,7 @@ function resetFilters(){
 }
 function applyFilters(){
   filters.search=document.getElementById("fSearch").value.trim();
+  filters.status=document.getElementById("fStatus").value;
   filters.prop=document.getElementById("fProp").value; filters.mort=document.getElementById("fMort").value;
   filters.region=document.getElementById("fRegion").value; filters.ready=+document.getElementById("fReady").value;
   filters.price=document.getElementById("fPrice").value; filters.down=document.getElementById("fDown").value;
@@ -867,6 +876,9 @@ function filtered(){
     if(filters.tag!=="all"){ const ids=s.tagIds||[];
       if(filters.tag==="none"){ if(ids.length>0)return false; }
       else if(!ids.includes(filters.tag))return false; }
+    if(filters.status!=="all"){
+      if(filters.status==="none"){ if(s.status)return false; }
+      else if(s.status!==filters.status)return false; }
     if(filters.prop!=="all"&&s.hasProperty!==filters.prop)return false;
     if(filters.mort!=="all"&&s.hasMortgage!==filters.mort)return false;
     if(filters.region!=="all"&&!regionOf(s.desiredCity).includes(filters.region))return false;
