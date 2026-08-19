@@ -996,6 +996,8 @@ function collectDrawerFields(s){
   set("dCurrent","currentCity"); set("dIncome","income"); set("dAction","action"); set("dNotes","notes");
   const nm=g("dName2"); if(nm!==undefined&&nm.trim()) s.name=nm.trim();
   const rv=g("dReadiness"); if(rv!==undefined){ s.readinessRaw=rv; s.readiness=parseNum(rv); }
+  set("dJob","job");
+  const av=g("dAge"); if(av!==undefined){ s.ageRaw=av; s.age=parseNum(av); }
 }
 async function addConsult(){
   const s=students.find(x=>x.id===selectedId); if(!s)return;
@@ -1366,7 +1368,9 @@ function openDrawer(id){
     '<div class="track"><h4>進度備註 / 需求</h4><textarea class="agrow" id="dProgress" oninput="autoGrow(this)" placeholder="記錄輔導進度、下一步、卡關點…">'+esc(s.progressNote||"")+'</textarea></div>'+
     '<div class="track"><h4>買到的物件</h4>'+propHtml+'<button class="addprop" onclick="openPropModal(\''+s.id+'\')">＋ 新增買到的物件</button></div>'+
     '<div class="track"><h4>學員資料</h4>'+
-      '<div class="miniL">希望購入城市／區域</div><input class="din" id="dDesired" value="'+esc(s.desiredCity||"")+'">'+
+      '<div class="grid2"><div><div class="miniL">職業</div><input class="din" id="dJob" value="'+esc(s.job||"")+'"></div>'+
+      '<div><div class="miniL">年齡</div><input class="din" id="dAge" value="'+esc(s.ageRaw||(s.age!=null?String(s.age):""))+'"></div></div>'+
+      '<div class="miniL" style="margin-top:8px">希望購入城市／區域</div><input class="din" id="dDesired" value="'+esc(s.desiredCity||"")+'">'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">適合總價</div><input class="din" id="dPrice" value="'+esc(s.price||"")+'"></div>'+
       '<div><div class="miniL">可運用自備款</div><input class="din" id="dDown" value="'+esc(s.downPayment||"")+'"></div></div>'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">名下房產</div>'+optSelect("dHasProp",PROP_OPTIONS,s.hasProperty||"")+'</div>'+
