@@ -1532,9 +1532,9 @@ function recalcProp(){
   setT("cNetRent",netRent); setT("cCashflow",netRent-ml);
 }
 function openProperty(sid,pid){
-  const s=students.find(x=>x.id===sid); if(!s)return;
-  const p=(s.properties||[]).find(x=>x.id===pid); if(!p)return;
-  renoRef={sid,pid}; selectedId=null;
+  const s=students.find(x=>String(x.id)===String(sid)); if(!s)return;
+  const p=(s.properties||[]).find(x=>String(x.id)===String(pid)); if(!p)return;
+  renoRef={sid:s.id,pid:p.id}; selectedId=null;
   const tx=p.taxes||{},l1=p.loan01||{},l4=p.loan04||{},rt=p.rent||{},ob=p.old||{};
   document.getElementById("dName").textContent=p.address||"未填地址";
   document.getElementById("dMeta").textContent="屋主："+s.name;
