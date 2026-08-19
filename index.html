@@ -1,0 +1,1766 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>老屋改建陪跑進度管理</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#EDF0F3; --surface:#FFFFFF; --ink:#16232E; --muted:#647587;
+    --line:#DDE4EA; --line-soft:#EAEFF3; --brand:#12433D; --brand-soft:#E4EEEB;
+    --danger:#C0392B;
+    --shadow:0 1px 2px rgba(20,40,55,.06),0 8px 24px rgba(20,40,55,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;
+    background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  button{font-family:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit;font-size:14px}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 20px 60px}
+
+  header{background:var(--brand);color:#EAF3F0}
+  .hbar{max-width:1280px;margin:0 auto;padding:18px 20px 0;display:flex;flex-direction:column;gap:14px}
+  .htop{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .htop h1{font-size:19px;margin:0;letter-spacing:.5px;font-weight:700}
+  .htop .sub{font-size:12.5px;color:#9BC0B7;letter-spacing:.3px}
+  .cohorts{display:flex;gap:2px;align-items:flex-end;flex-wrap:wrap}
+  .ctab{background:transparent;border:none;color:#A9CBC3;padding:9px 16px;border-radius:9px 9px 0 0;font-size:14px;font-weight:600;position:relative;top:1px;cursor:grab}
+  .ctab:active{cursor:grabbing}
+  .ctab.dragging{opacity:.45}
+  .ctab.dropzone{box-shadow:inset 3px 0 0 #7FD1BE}
+  .ctab:hover{color:#EAF3F0}
+  .ctab.active{background:var(--bg);color:var(--brand)}
+  .ctab .cnt{font-size:11px;opacity:.7;margin-left:5px;font-weight:500}
+  .ctab-add{background:rgba(255,255,255,.1);color:#CFE3DD;border:none;border-radius:8px;width:32px;height:32px;font-size:18px;line-height:1;margin-bottom:3px}
+  .ctab-add:hover{background:rgba(255,255,255,.2)}
+
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:20px 0 16px}
+  .seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:3px}
+  .seg button{border:none;background:transparent;padding:7px 15px;border-radius:7px;font-weight:600;color:var(--muted)}
+  .seg button.on{background:var(--brand);color:#fff}
+  .spacer{flex:1}
+  .btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 14px;border-radius:9px;font-weight:600}
+  .btn:hover{border-color:#c3ced7}
+  .btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .btn.primary:hover{background:#0e3833}
+  .btn.ghost{background:transparent}
+  .btn.sm{padding:6px 11px;font-size:13px}
+
+  .filters{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-wrap:wrap;gap:12px 18px;align-items:flex-end;margin-bottom:16px}
+  .fgrp{display:flex;flex-direction:column;gap:5px}
+  .fgrp label{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.4px;text-transform:uppercase}
+  .fgrp input[type=text],.fgrp select{border:1px solid var(--line);border-radius:9px;padding:8px 11px;background:#fff;min-width:150px;color:var(--ink)}
+  .fgrp input:focus,.fgrp select:focus{outline:none;border-color:var(--brand)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:6px 13px;font-size:13px;font-weight:600;color:var(--muted)}
+  .chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .rangewrap{display:flex;align-items:center;gap:9px}
+  .rangewrap input[type=range]{width:120px;accent-color:var(--brand)}
+  .rangeval{font-weight:700;min-width:24px;text-align:center}
+  .resultline{font-size:13px;color:var(--muted);margin:2px 2px 12px;font-weight:600}
+  .resultline b{color:var(--ink)}
+
+  .tablecard{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:auto;box-shadow:var(--shadow);max-height:65vh}
+  body.scrolled header{display:none}
+  body.scrolled .toolbar{display:none}
+  body.scrolled #storeStatus{display:none}
+  body.scrolled #listView .filters{display:none}
+  #toTop{position:fixed;right:22px;bottom:24px;z-index:95;display:none;align-items:center;gap:6px;background:var(--brand);color:#fff;border:none;border-radius:999px;padding:11px 18px;font-size:14px;font-weight:700;box-shadow:0 8px 22px rgba(16,35,46,.28);cursor:pointer}
+  #toTop:hover{background:#0d3630}
+  body.scrolled #toTop{display:inline-flex}
+  thead th:first-child{border-top-left-radius:13px}
+  thead th:last-child{border-top-right-radius:13px}
+  #tbody tr:last-child td:first-child{border-bottom-left-radius:13px}
+  #tbody tr:last-child td:last-child{border-bottom-right-radius:13px}
+  table{width:100%;border-collapse:separate;border-spacing:0}
+  thead th{background:#F3F6F8;text-align:left;font-size:11.5px;letter-spacing:.4px;color:var(--muted);text-transform:uppercase;padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap;user-select:none;position:sticky;top:0;z-index:5}
+  thead th.sortable{cursor:pointer}
+  thead th.sortable:hover{color:var(--ink)}
+  thead th .arw{opacity:.4;font-size:10px}
+  thead th.sorted .arw{opacity:1;color:var(--brand)}
+  tbody td{padding:11px 14px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+  tbody tr{cursor:pointer}
+  tbody tr:hover{background:#F7FAFB}
+  tbody tr:last-child td{border-bottom:none}
+  .name{font-weight:700;font-size:14.5px;min-width:3.2em}
+  .name .pin{font-size:11px;color:var(--brand);font-weight:700;margin-left:6px}
+  .cell-sub{color:var(--muted);font-size:12.5px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cell-wrap{color:var(--muted);font-size:12.5px;width:8em;max-width:8em;white-space:normal;overflow-wrap:break-word;word-break:break-word;line-height:1.45}
+  .price-wrap{font-size:13px;width:9em;max-width:9em;white-space:normal;overflow-wrap:break-word;word-break:break-word;line-height:1.45}
+  .tag{display:inline-block;padding:2.5px 9px;border-radius:14px;font-size:11.5px;font-weight:700;margin:1px 3px 1px 0;white-space:nowrap;border:1px solid transparent}
+  .yn{font-weight:700}.yn.y{color:#0A6444}.yn.n{color:var(--muted)}
+  .ready{display:inline-flex;align-items:center;gap:7px;font-weight:700}
+  .readbar{width:46px;height:6px;border-radius:4px;background:var(--line);overflow:hidden}
+  .readbar>i{display:block;height:100%;border-radius:4px}
+  .empty{padding:60px 20px;text-align:center;color:var(--muted)}
+  .empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:6px}
+
+  th.selcol,td.selcol{width:40px;text-align:center;padding-left:14px;padding-right:2px}
+  .rowcheck{width:16px;height:16px;accent-color:var(--brand);cursor:pointer;vertical-align:middle;margin:0}
+  .bulkbar{background:var(--ink);color:#fff;border-radius:12px;padding:10px 16px;display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;margin-bottom:12px;box-shadow:var(--shadow)}
+  .bulkbar .bcount{font-weight:700;white-space:nowrap}
+  .bulkbar .blabel{font-size:12.5px;color:#AFC0CC;font-weight:700;white-space:nowrap}
+  .bulkbar .bgrp{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .bulkbar .sep{width:1px;height:22px;background:rgba(255,255,255,.16)}
+  .btag{border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;border-radius:16px;padding:5px 12px;font-weight:700;font-size:12.5px;display:inline-flex;align-items:center;gap:6px}
+  .btag.qk{color:#2A343A;background:#EDF2F0;border-color:#D3E0DB}
+  .btag.qk:hover{background:#E2EBE7}
+  .btag:hover{background:rgba(255,255,255,.2)}
+  .btag .dot{width:8px;height:8px;border-radius:50%}
+  .btag.rm{border-style:dashed;color:#E7CFCB}
+  .bclear{margin-left:auto;background:transparent;border:none;color:#CFDDE6;font-weight:700;font-size:12.5px;text-decoration:underline;white-space:nowrap}
+  .bclear:hover{color:#fff}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:18px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+  .kpi .n{font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1}
+  .kpi .l{font-size:12.5px;color:var(--muted);font-weight:600;margin-top:6px}
+  .statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow)}
+  .panel h3{margin:0 0 14px;font-size:14px;font-weight:700}
+  .barrow{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:13px}
+  .barrow .bl{width:100px;color:var(--muted);font-weight:600;text-align:right;flex-shrink:0;font-size:12.5px}
+  .barrow .bt{flex:1;height:20px;background:var(--line-soft);border-radius:6px;overflow:hidden}
+  .barrow .bt>i{display:block;height:100%;background:var(--brand);border-radius:6px;transition:width .5s}
+  .barrow .bv{width:60px;font-weight:700;font-size:12.5px}
+  .hist{display:flex;align-items:flex-end;gap:5px;height:150px;padding-top:8px}
+  .hist .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+  .hist .bar{width:100%;border-radius:5px 5px 0 0;background:linear-gradient(180deg,#1E6B60,#12433D);min-height:2px;transition:height .5s;position:relative}
+  .hist .bar span{position:absolute;top:-18px;left:0;right:0;text-align:center;font-size:11px;font-weight:700;color:var(--ink)}
+  .hist .xl{font-size:11px;color:var(--muted);font-weight:600}
+
+  /* Renovation zone */
+  .propgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+  .propcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);cursor:pointer;transition:.15s}
+  .propcard:hover{border-color:var(--brand);transform:translateY(-2px)}
+  .propcard .addr{font-weight:700;font-size:15px;margin-bottom:3px}
+  .propcard .owner{font-size:12.5px;color:var(--muted);margin-bottom:12px}
+  .stagepill{display:inline-block;background:var(--brand-soft);color:var(--brand);font-weight:700;font-size:12px;padding:3px 10px;border-radius:12px}
+  .stepper{display:flex;gap:4px;margin-top:12px}
+  .stepper .st{flex:1;height:6px;border-radius:3px;background:var(--line)}
+  .stepper .st.done{background:var(--brand)}
+  .stepwrap{margin:6px 0 2px}
+  .stepwrap .lbl{font-size:11.5px;color:var(--muted);font-weight:600;display:flex;justify-content:space-between;margin-bottom:5px}
+
+  /* Drawer */
+  .scrim{position:fixed;inset:0;background:rgba(16,35,46,.42);opacity:0;pointer-events:none;transition:opacity .22s;z-index:40}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:min(580px,100%);background:var(--bg);box-shadow:-8px 0 40px rgba(16,35,46,.2);transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:50;display:flex;flex-direction:column}
+  .drawer.show{transform:translateX(0)}
+  .dhead{background:var(--brand);color:#fff;padding:20px 24px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .dhead h2{margin:0;font-size:20px}
+  .dhead .meta{font-size:12.5px;color:#9BC0B7;margin-top:5px}
+  .dclose{background:rgba(255,255,255,.14);border:none;color:#fff;width:34px;height:34px;border-radius:9px;font-size:18px;flex-shrink:0}
+  .dclose:hover{background:rgba(255,255,255,.26)}
+  .dbody{flex:1;overflow-y:auto;padding:20px 24px}
+  .track{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:16px}
+  .track h4{margin:0 0 12px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:flex;justify-content:space-between;align-items:center}
+  .track h4 .mini{font-size:12px;text-transform:none;letter-spacing:0}
+  .flagbtns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+  .flagbtn{border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:8px 14px;font-weight:700;font-size:13.5px;color:var(--muted);display:flex;align-items:center;gap:7px}
+  .flagbtn .dot{width:9px;height:9px;border-radius:50%;background:var(--line)}
+  .track textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;resize:vertical;min-height:60px;color:var(--ink)}
+  .track textarea:focus{outline:none;border-color:var(--brand)}
+  .field{margin-bottom:15px}
+  .field .k{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+  .field .v{background:var(--surface);border:1px solid var(--line-soft);border-radius:10px;padding:10px 13px;white-space:pre-wrap;word-break:break-word}
+  .field .v.blank{color:#aeb9c2;font-style:italic}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .dfoot{border-top:1px solid var(--line);background:var(--surface);padding:14px 24px;display:flex;gap:10px}
+  .dfoot .btn.del{color:var(--danger);border-color:#eccbc7;margin-left:auto}
+  .dfoot .btn.del:hover{background:#fbecea}
+
+  /* property list inside student */
+  .plist{display:flex;flex-direction:column;gap:9px}
+  .prow{border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:#fff}
+  .prow .ptop{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .prow .paddr{font-weight:700}
+  .prow .pmeta{font-size:12px;color:var(--muted);margin-top:3px}
+  .prow .goreno{color:var(--brand);font-weight:700;font-size:12.5px;background:var(--brand-soft);border:none;border-radius:8px;padding:6px 11px;white-space:nowrap}
+  .prow .goreno:hover{background:#d3e5e0}
+  .addprop{border:1.5px dashed var(--line);background:transparent;color:var(--muted);border-radius:11px;padding:10px;font-weight:700;width:100%}
+  .addprop:hover{border-color:var(--brand);color:var(--brand)}
+
+  /* stepper editor */
+  .stagesel{display:flex;flex-wrap:wrap;gap:6px}
+  .stagesel button{border:1.5px solid var(--line);background:#fff;color:var(--muted);border-radius:9px;padding:7px 12px;font-weight:700;font-size:12.5px}
+  .stagesel button.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .stagesel button.done{border-color:var(--brand);color:var(--brand)}
+
+  .modal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:20px}
+  .modal.show{display:flex}
+  .modal .box{background:var(--surface);border-radius:16px;width:min(560px,100%);max-height:88vh;overflow-y:auto;box-shadow:0 30px 80px rgba(16,35,46,.3)}
+  .modal .mh{padding:18px 22px;border-bottom:1px solid var(--line);font-weight:700;font-size:16px;display:flex;justify-content:space-between;align-items:center}
+  .modal .mb{padding:20px 22px}
+  .modal .mf{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+  .frow{margin-bottom:13px}
+  .frow label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:5px}
+  .frow input,.frow select,.frow textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;color:var(--ink)}
+  .frow input:focus,.frow select:focus,.frow textarea:focus{outline:none;border-color:var(--brand)}
+
+  /* tag manager */
+  .tmrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-soft)}
+  .tmrow:last-child{border-bottom:none}
+  .tmrow .sw{width:20px;height:20px;border-radius:6px;flex-shrink:0}
+  .tmrow input.tname{flex:1;border:1px solid transparent;border-radius:7px;padding:6px 8px;font-weight:600}
+  .tmrow input.tname:focus{outline:none;border-color:var(--line);background:#fff}
+  .tmrow .used{font-size:12px;color:var(--muted);white-space:nowrap}
+  .tmrow .xdel{border:none;background:transparent;color:var(--danger);font-weight:700;font-size:16px;padding:4px 8px;border-radius:7px}
+  .tmrow .xdel:hover{background:#fbecea}
+  .swatches{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0 4px}
+  .swatches button{width:26px;height:26px;border-radius:7px;border:2px solid transparent}
+  .swatches button.on{border-color:var(--ink)}
+
+  .imp-drop{border:2px dashed var(--line);border-radius:12px;padding:26px 18px;text-align:center;color:var(--muted);cursor:pointer;line-height:1.7}
+  .imp-drop:hover{border-color:var(--brand);color:var(--brand)}
+  .maptbl{width:100%;font-size:13px;margin-top:4px;border-collapse:collapse}
+  .maptbl td{padding:5px 6px;border-bottom:1px solid var(--line-soft)}
+  .maptbl td.k{color:var(--muted);font-weight:700;white-space:nowrap;width:42%}
+  .maptbl select{width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:var(--ink)}
+  .imp-opt{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;font-weight:600}
+  .imp-opt input{width:16px;height:16px;accent-color:var(--brand)}
+  .combo{position:relative}
+  .combo input{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;color:var(--ink)}
+  .combo input:focus{outline:none;border-color:var(--brand)}
+  .combo .list{position:absolute;left:0;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid var(--line);
+    border-radius:10px;box-shadow:0 12px 30px rgba(16,35,46,.16);max-height:220px;overflow-y:auto;z-index:70;display:none}
+  .combo .list.show{display:block}
+  .combo .opt{padding:9px 12px;cursor:pointer;font-weight:600;border-bottom:1px solid var(--line-soft)}
+  .combo .opt:last-child{border-bottom:none}
+  .combo .opt:hover,.combo .opt.active{background:var(--brand-soft);color:var(--brand)}
+  .combo .opt .sub{font-weight:500;color:var(--muted);font-size:12px;margin-left:6px}
+  .combo .none{padding:11px 12px;color:var(--muted);font-size:13px}
+  .combo .picked{margin-top:6px;font-size:12.5px;font-weight:700;color:var(--brand)}
+  .tagcell{cursor:pointer;border-radius:8px;padding:2px 4px;margin:-2px -4px;display:inline-block}
+  .tagcell:hover{background:var(--brand-soft);outline:1px dashed #9CC3B9}
+  .tagpop{position:fixed;background:#fff;border:1px solid var(--line);border-radius:11px;box-shadow:0 14px 40px rgba(16,35,46,.22);
+    padding:6px;z-index:90;min-width:170px;display:none}
+  .tagpop.show{display:block}
+  .tagpop .ti{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13.5px}
+  .tagpop .ti:hover{background:var(--line-soft)}
+  .tagpop .ti .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  .tagpop .ti.cur{background:var(--brand-soft);color:var(--brand)}
+  .tagpop .sep{height:1px;background:var(--line-soft);margin:4px 2px}
+  .pcin{width:4.5em;min-width:4.5em;max-width:4.5em;border:1px solid transparent;border-radius:7px;padding:5px 6px;color:var(--ink);font-size:13px;background:transparent}
+  .pcin:hover{border-color:var(--line)}
+  .pcin:focus{outline:none;border-color:var(--brand);background:#fff}
+  .pdet{border:1px solid var(--line);border-radius:10px;padding:0 12px;margin-top:8px;background:#fff}
+  .pdet>summary{cursor:pointer;padding:10px 0;font-weight:700;font-size:13px;color:var(--ink);list-style:none}
+  .pdet>summary::-webkit-details-marker{display:none}
+  .pdet>summary::before{content:"\25B8  ";color:var(--brand)}
+  .pdet[open]>summary::before{content:"\25BE  "}
+  .pdbody{padding:2px 0 12px}
+  .pcalc{display:flex;justify-content:space-between;align-items:center;background:var(--brand-soft);border-radius:9px;padding:9px 12px;margin-top:8px;font-weight:700;color:var(--brand)}
+  .pcalc b{font-size:15px}
+  .psub{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.5}
+  .din{width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 10px;color:var(--ink);font-size:13.5px}
+  .din:focus{outline:none;border-color:var(--brand)}
+  /* 自動長高的 textarea：不出現捲軸、不手動拉 */
+  textarea.agrow{overflow-y:hidden;resize:none}
+  .miniL{font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:4px}
+  .propchip{display:inline-flex;align-items:center;gap:5px;background:var(--brand-soft);color:var(--brand);border-radius:8px;padding:3px 9px;margin:2px 5px 2px 0;font-size:12px;font-weight:700;cursor:pointer;max-width:340px}
+  .propchip:hover{background:#d3e5e0}
+  .propchip .pa{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
+  .consult{border:1px solid var(--line-soft);border-radius:10px;padding:9px 11px;margin-bottom:8px;background:#fff}
+  .consult .ch{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:3px}
+  .consult .cc{white-space:pre-wrap;font-size:13.5px}
+  .todoitem{display:flex;align-items:center;gap:8px;border:1px solid var(--line-soft);border-radius:9px;padding:8px 10px;margin-bottom:7px;background:#fff}
+  .todoitem label{display:flex;align-items:center;gap:9px;flex:1;cursor:pointer;font-size:13.5px;font-weight:600}
+  .todoitem.done label span{text-decoration:line-through;color:var(--muted);font-weight:500}
+  .todoitem .tdel{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:6px}
+  .todoitem .tdel:hover{background:#FBEAE7;color:#B3402E}
+  .todobadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:7px;border-radius:9px;background:#E8873A;color:#fff;font-size:11px;font-weight:800;vertical-align:middle}
+  .tagpop{max-height:320px;overflow-y:auto}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:11px 20px;border-radius:10px;font-weight:600;opacity:0;transition:.25s;z-index:80;pointer-events:none;font-size:13.5px}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media(max-width:720px){.cell-hide{display:none}.drawer{width:100%}.grid2{grid-template-columns:1fr}}
+
+  .authgate{position:fixed;inset:0;background:linear-gradient(135deg,#12433D,#0b2e2a);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px}
+  .authgate.hide{display:none}
+  .authcard{background:#fff;border-radius:18px;padding:32px 30px;width:min(400px,100%);box-shadow:0 30px 80px rgba(0,0,0,.35)}
+  .authbrand{font-size:19px;font-weight:800;color:var(--brand)}
+  .authsub{color:var(--muted);font-size:13.5px;margin:4px 0 20px}
+  .authmsg{border-radius:10px;padding:10px 12px;font-size:13px;font-weight:600;margin-bottom:14px}
+  .authmsg.err{background:#FBEAE8;color:#B3261E;border:1px solid #E9C3BE}
+  .authmsg.ok{background:#DCF3E9;color:#0A6444;border:1px solid #A9DCC7}
+  .authcard .frow{margin-bottom:13px}
+  .authcard .frow label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:5px}
+  .authcard .frow input{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink)}
+  .authcard .frow input:focus{outline:none;border-color:var(--brand)}
+  .linkbtn{background:none;border:none;color:var(--brand);font-weight:700;font-size:13px;margin-top:12px;text-decoration:underline;display:block;cursor:pointer}
+  .authnote{color:var(--muted);font-size:12px;margin-top:18px;line-height:1.6;border-top:1px solid var(--line-soft);padding-top:14px}
+  .userchip{display:flex;align-items:center;gap:10px;color:#CFE3DD;font-size:12.5px;margin-left:auto}
+  .userchip .em{color:#EAF3F0;font-weight:600}
+  .signout{background:rgba(255,255,255,.12);border:none;color:#EAF3F0;padding:6px 12px;border-radius:8px;font-weight:600;font-size:12.5px;cursor:pointer}
+  .signout:hover{background:rgba(255,255,255,.22)}
+</style>
+</head>
+<body>
+<div id="authGate" class="authgate">
+  <div class="authcard">
+    <div class="authbrand">老屋改建 · 陪跑進度管理</div>
+    <div class="authsub">請登入以存取團隊資料</div>
+    <div id="authMsg" class="authmsg" style="display:none"></div>
+    <div class="frow"><label>Email</label><input type="email" id="authEmail" placeholder="you@example.com"></div>
+    <div class="frow"><label>密碼</label><input type="password" id="authPw" placeholder="密碼" onkeydown="if(event.key==='Enter')doSignIn()"></div>
+    <button class="btn primary" style="width:100%;margin-top:6px" onclick="doSignIn()">登入</button>
+    <button class="linkbtn" onclick="doReset()">忘記密碼？寄送重設連結</button>
+    <div class="authnote">帳號由管理者在 Supabase 後台邀請建立，本系統不開放自行註冊。資料採連線加密（HTTPS），僅授權成員可存取。</div>
+  </div>
+</div>
+<header>
+  <div class="hbar">
+    <div class="htop">
+      <h1>老屋改建 · 陪跑進度管理</h1>
+      <span class="sub">學員輔導 · 物件改建 · 統計</span>
+      <div class="userchip" id="userChip"><span class="em" id="userEmail"></span><button class="signout" onclick="doSignOut()">登出</button></div>
+    </div>
+    <div class="cohorts" id="cohorts"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="toolbar">
+    <div class="seg">
+      <button id="vList" class="on" onclick="setView('list')">學員列表</button>
+      <button id="vReno" onclick="setView('reno')">物件改建專區</button>
+      <button id="vStats" onclick="setView('stats')">統計總覽</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" id="btnTodo" onclick="setView('todo')">學員待辦項目</button>
+    <button class="btn" onclick="openCohortMgr()">班級管理</button>
+    <button class="btn" onclick="openTagMgr()">標籤管理</button>
+    <button class="btn" onclick="openImport()">匯入 Excel</button>
+    <button class="btn" onclick="exportCsv()">匯出 CSV</button>
+    <button class="btn" onclick="backupAll()">備份</button>
+    <button class="btn" onclick="document.getElementById('restoreFile').click()">還原</button>
+    <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restorePicked(this)">
+    <button class="btn primary" onclick="openAdd()">＋ 新增學員</button>
+  </div>
+
+  <div id="storeStatus" style="font-size:12.5px;font-weight:700;margin:2px 2px 12px"></div>
+
+  <div id="storeWarn" style="display:none;background:#FBEBCE;border:1px solid #E8C58A;color:#8A5209;border-radius:12px;padding:11px 15px;margin-bottom:16px;font-size:13px;font-weight:600;align-items:center;gap:8px">
+    ⚠ 這個環境無法永久儲存資料，變更只在關閉分頁前有效。請把檔案下載到電腦後用瀏覽器開啟，或先按「備份」存下資料。
+  </div>
+
+  <!-- LIST VIEW -->
+  <div id="listView">
+    <div class="filters">
+      <div class="fgrp" style="flex:1;min-width:200px"><label>搜尋</label>
+        <input type="text" id="fSearch" placeholder="姓名、地區、職業、備註、物件地址…" oninput="applyFilters()"></div>
+      <div class="fgrp"><label>標籤</label><div class="chips" id="flagChips"></div></div>
+      <div class="fgrp"><label>名下房產</label>
+        <select id="fProp" onchange="applyFilters()"><option value="all">全部</option><option value="只有繼承的房子">只有繼承的房子</option><option value="有">有</option><option value="無">無</option></select></div>
+      <div class="fgrp"><label>名下房貸</label>
+        <select id="fMort" onchange="applyFilters()"><option value="all">全部</option><option value="科目01 購屋貸款">科目01 購屋貸款</option><option value="科目04 週轉金">科目04 週轉金</option><option value="科目01+04 都有">科目01+04 都有</option><option value="無">無</option></select></div>
+      <div class="fgrp"><label>適合總價</label>
+        <select id="fPrice" onchange="applyFilters()"><option value="all">全部</option><option value="1500萬以下">1500萬以下</option><option value="1500–2000萬">1500–2000萬</option><option value="2000–2500萬">2000–2500萬</option><option value="2500–3000萬">2500–3000萬</option><option value="3000萬以上">3000萬以上</option></select></div>
+      <div class="fgrp"><label>可運用自備款</label>
+        <select id="fDown" onchange="applyFilters()"><option value="all">全部</option><option value="200萬以下">200萬以下</option><option value="200–500萬">200–500萬</option><option value="500–800萬">500–800萬</option><option value="800–1200萬">800–1200萬</option><option value="1200萬以上">1200萬以上</option></select></div>
+      <div class="fgrp"><label>希望購入地區</label><select id="fRegion" onchange="applyFilters()"></select></div>
+      <div class="fgrp"><label>準備度 ≥</label><div class="rangewrap">
+        <input type="range" id="fReady" min="0" max="10" step="1" value="0" oninput="applyFilters()">
+        <span class="rangeval" id="readyVal">0</span></div></div>
+      <div class="fgrp"><label>&nbsp;</label><button class="btn ghost" onclick="resetFilters()">清除篩選</button></div>
+    </div>
+    <div class="resultline" id="resultLine"></div>
+    <div class="bulkbar" id="bulkBar" style="display:none"></div>
+    <div class="tablecard">
+      <table>
+        <thead><tr>
+          <th class="selcol"><input type="checkbox" id="selAll" class="rowcheck" onclick="toggleSelectAll(this)"></th>
+          <th class="sortable" data-sort="name" onclick="setSort('name')">姓名 <span class="arw">↕</span></th>
+          <th>英文</th>
+          <th>私圈</th>
+          <th>標籤</th>
+          <th>Status</th>
+          <th class="cell-hide">居住地區</th>
+          <th>希望購入</th>
+          <th class="cell-hide">適合總價</th>
+          <th>房產</th>
+          <th class="cell-hide">房貸</th>
+          <th class="sortable" data-sort="readiness" onclick="setSort('readiness')">準備度 <span class="arw">↕</span></th>
+          <th class="cell-hide">物件</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty" id="emptyState" style="display:none"><b>找不到符合條件的學員</b>調整或清除篩選條件再試一次</div>
+    </div>
+  </div>
+
+  <!-- RENO VIEW -->
+  <div id="renoView" style="display:none">
+    <div class="toolbar" style="margin-top:0">
+      <div class="fgrp"><label style="font-size:11px;font-weight:700;color:var(--muted)">改建階段</label>
+        <select id="fStage" onchange="renderReno()"><option value="all">全部階段</option></select></div>
+      <div class="spacer"></div>
+      <button class="btn primary" onclick="openPropModalReno()">＋ 新增物件</button>
+    </div>
+    <div class="resultline" id="renoLine"></div>
+    <div class="propgrid" id="propgrid"></div>
+    <div class="empty" id="renoEmpty" style="display:none">
+      <b>目前沒有已買到的物件</b>按右上角「＋ 新增物件」，或到學員頁面的「買到的物件」新增，都會出現在這裡
+    </div>
+  </div>
+
+  <!-- STATS VIEW -->
+  <div id="statsView" style="display:none"></div>
+  <div id="todoView" style="display:none"></div>
+</div>
+
+<!-- Drawer -->
+<div class="scrim" id="scrim" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="dhead"><div><h2 id="dName"></h2><div class="meta" id="dMeta"></div></div>
+    <button class="dclose" onclick="closeDrawer()">✕</button></div>
+  <div class="dbody" id="dBody"></div>
+  <div class="dfoot" id="dFoot"></div>
+</div>
+
+<!-- Add student modal -->
+<div class="modal" id="addModal"><div class="box">
+  <div class="mh">新增學員</div>
+  <div class="mb" id="addFields"></div>
+  <div class="mf"><button class="btn ghost" onclick="closeAdd()">取消</button><button class="btn primary" onclick="submitAdd()">新增</button></div>
+</div></div>
+
+<!-- Add cohort modal -->
+<div class="modal" id="cohortModal"><div class="box">
+  <div class="mh">新增班級</div>
+  <div class="mb"><div class="frow"><label>班級名稱</label><input type="text" id="newCohortName" placeholder="例如：第二班"></div>
+    <p style="color:var(--muted);font-size:13px;margin:0">新班級為空白名單，可用「＋ 新增學員」逐一加入。</p></div>
+  <div class="mf"><button class="btn ghost" onclick="closeCohort()">取消</button><button class="btn primary" onclick="submitCohort()">建立班級</button></div>
+</div></div>
+
+<!-- Tag manager modal -->
+<div class="modal" id="tagModal"><div class="box">
+  <div class="mh"><span>標籤管理</span><button class="dclose" style="background:var(--line-soft);color:var(--ink)" onclick="closeTagMgr()">✕</button></div>
+  <div class="mb">
+    <p style="color:var(--muted);font-size:13px;margin:0 0 12px">建立自己的標籤，套用到學員身上，並可用來篩選與統計。標籤為所有班級共用。</p>
+    <div id="tagList"></div>
+    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px">
+      <div class="frow"><label>新增標籤名稱</label><input type="text" id="newTagName" placeholder="例如：已送件、觀望中、VIP"></div>
+      <label style="font-size:12px;font-weight:700;color:var(--muted)">顏色</label>
+      <div class="swatches" id="tagSwatches"></div>
+      <button class="btn primary sm" style="margin-top:8px" onclick="addTag()">＋ 建立標籤</button>
+    </div>
+  </div>
+  <div class="mf"><button class="btn primary" onclick="closeTagMgr()">完成</button></div>
+</div></div>
+
+<!-- Property modal -->
+<div class="modal" id="propModal"><div class="box">
+  <div class="mh" id="propModalTitle">新增買到的物件</div>
+  <div class="mb">
+    <div class="frow" id="pOwnerWrap" style="display:none"><label>屋主學員 *</label>
+      <div class="combo">
+        <input type="text" id="pOwnerSearch" placeholder="輸入姓名搜尋…" autocomplete="off" oninput="ownerFilter()" onfocus="ownerFilter()" onkeydown="ownerKey(event)">
+        <div class="list" id="pOwnerList"></div>
+      </div>
+      <div class="picked" id="pOwnerPicked" style="display:none"></div>
+      <input type="hidden" id="pOwner">
+    </div>
+    <div class="frow"><label>物件地址 *</label><input type="text" id="pAddr" placeholder="例如：台北市中山區林森北路 100 號"></div>
+    <div class="grid2">
+      <div class="frow"><label>基地／坪數</label><input type="text" id="pArea" placeholder="例如：土地 30 坪"></div>
+      <div class="frow"><label>成交總價</label><input type="text" id="pPrice" placeholder="例如：2000 萬"></div>
+    </div>
+    <div class="frow"><label>買到日期</label><input type="text" id="pDate" placeholder="例如：2026/03"></div>
+  </div>
+  <div class="mf"><button class="btn ghost" onclick="closePropModal()">取消</button><button class="btn primary" onclick="submitProp()">儲存</button></div>
+</div></div>
+
+<!-- Bulk todo modal -->
+<div class="modal" id="bulkTodoModal"><div class="box">
+  <div class="mh"><span>新增待辦</span><button class="dclose" style="background:var(--line-soft);color:var(--ink)" onclick="closeBulkTodo()">✕</button></div>
+  <div class="mb">
+    <div id="bulkTodoCount" style="color:var(--muted);font-size:13px;margin-bottom:12px"></div>
+    <div id="bulkTodoQuick" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px"></div>
+    <div class="miniL">自訂內容</div>
+    <textarea class="din" id="bulkTodoText" style="min-height:60px" placeholder="輸入待辦內容…"></textarea>
+  </div>
+  <div class="mf"><button class="btn primary" onclick="submitBulkTodo()">加入待辦</button><button class="btn ghost" onclick="closeBulkTodo()">取消</button></div>
+</div></div>
+
+<!-- Cohort manager modal -->
+<div class="modal" id="cohortMgrModal"><div class="box">
+  <div class="mh"><span>班級管理</span><button class="dclose" style="background:var(--line-soft);color:var(--ink)" onclick="closeCohortMgr()">✕</button></div>
+  <div class="mb">
+    <p style="color:var(--muted);font-size:13px;margin:0 0 12px">管理所有班級：改名、調整順序、刪除。順序也可直接拖曳上方的班級分頁。</p>
+    <div id="cohortMgrList"></div>
+    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px">
+      <div class="frow"><label>新增班級名稱</label><input type="text" id="mgrNewCohort" placeholder="例如：第三班"></div>
+      <button class="btn primary sm" onclick="addCohortFromMgr()">＋ 建立班級</button>
+    </div>
+  </div>
+  <div class="mf"><button class="btn primary" onclick="closeCohortMgr()">完成</button></div>
+</div></div>
+
+<!-- Import modal -->
+<div class="modal" id="importModal"><div class="box">
+  <div class="mh"><span>匯入 Excel／CSV 建立學員</span><button class="dclose" style="background:var(--line-soft);color:var(--ink)" onclick="closeImport()">✕</button></div>
+  <div class="mb" id="impBody"></div>
+  <div class="mf" id="impFoot"></div>
+</div></div>
+
+<div class="tagpop" id="tagPop" onclick="event.stopPropagation()"></div>
+<button id="toTop" onclick="scrollListTop()" title="回到頂部">↑ 回到頂部</button>
+<div class="toast" id="toast"></div>
+
+<script>
+const SEED = [{"id": 1, "name": "Carol黃菀愉", "currentCity": "新北/板橋跟樹林交界處 (家人的)", "desiredCity": "新北/板橋、台北/中山、大同", "price": "1500萬-1800萬", "downPayment": "100-200萬", "decisionMaker": "自己", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "38", "age": 38, "job": "環保的日用品 BD", "income": "100萬/年 (底薪60萬+獎金40萬)", "readinessRaw": "7分/10分", "readiness": 7.0, "action": "1. 合資。有較高機率會需要找人合作。", "notes": "其他可登記/貸款的家人/夥伴：自己。由於家人生病，會需要保留較多現金在日常。不確定在老屋重建的資金上是否足夠。有較高機率會需要找人合作。 (主要是聽到Ellie老師在第一堂課有提到，危老/都更需要考量街廓位置跟格局大小)", "progressNote": "", "tagIds": [], "properties": []}, {"id": 2, "name": "Nicky", "currentCity": "新北市/永和區", "desiredCity": "台北市/大安區、松山區、中正區、中山區、大同區", "price": "2000萬~3000萬", "downPayment": "300萬~500萬", "decisionMaker": "合夥人、先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "40", "age": 40, "job": "富邦人壽", "income": "200萬/年", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "", "notes": "其他可登記/貸款的家人/夥伴：朋友。房產經驗：自己自住永和(2000萬，還在寬限期內)、高雄爸媽自用(800萬)；先生中和收租(800萬)。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 3, "name": "劉中惠", "currentCity": "新竹", "desiredCity": "新竹", "price": "", "downPayment": "", "decisionMaker": "", "hasProperty": "未填", "hasMortgage": "未填", "ageRaw": "", "age": null, "job": "", "income": "", "readinessRaw": "", "readiness": null, "action": "", "notes": "婆家松山高中對面，有人整合過改建，但沒下文；娘家台電大樓5號出口 x 2 (1F 隔雅房收租，不同棟 2F 長輩自住)。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 4, "name": "劉孟婕", "currentCity": "台北/松山", "desiredCity": "台北/松山、信義、大安", "price": "2000萬", "downPayment": "300萬~500萬", "decisionMaker": "股東合夥人", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "40", "age": 40, "job": "台積電", "income": "", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "賺到合建前的價差", "notes": "其他可登記/貸款的家人/夥伴：台積電的朋友。房產經驗：1. 買入隔套後出租一段時間，然後出售；2. 短投經驗豐富。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 5, "name": "劉宜佳", "currentCity": "高雄市", "desiredCity": "1. 高雄市 2. 台北市", "price": "2000萬", "downPayment": "200-300 萬", "decisionMaker": "自己", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "39", "age": 39, "job": "", "income": "", "readinessRaw": "7分／10分", "readiness": 7.0, "action": "1. 租金>本息", "notes": "房產經驗：1.新成屋及預售屋的買賣、裝潢。(輕裝修＋代租＋代管)；其他可登記/貸款的家人/夥伴：自己 (全部科目01=> 04)", "progressNote": "", "tagIds": ["t_wait"], "properties": []}, {"id": 6, "name": "劉彥君", "currentCity": "台北市中山區 (媽媽的)", "desiredCity": "台北市中山 松山 大安 中正 信義區", "price": "2000萬", "downPayment": "500-800 萬", "decisionMaker": "自己為主，知會先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "43", "age": 43, "job": "遊戲公司會計 (美國)", "income": "$ 600萬/年", "readinessRaw": "6分／10分", "readiness": 6.0, "action": "1. 確定買誰的 2. 如果是先生，租金>本+息 (頂加 or 一層 1套+3雅=5.85租金=可買1800萬)", "notes": "其他可登記/貸款的家人/夥伴：1.姊姊 (只有繼承的房子) 2.先生 (01剩下600萬, 01->04)。房產經驗：2019年自家公寓頂加翻修；2022年出售復興南路；2022年購入長安東路住商大樓(出租36000/月)；2023年購入新店公寓(出租29000/月，預計明年進入權利變換)。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 7, "name": "劉怡吟", "currentCity": "新北市/永和區", "desiredCity": "新北市/中和或永和", "price": "未填寫", "downPayment": "200-300 萬", "decisionMaker": "自己、先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "48", "age": 48, "job": "104", "income": "股息10+ 租金54萬(含中和36萬，幫媽媽包租代管4.7萬/月，利差1.5萬)/年", "readinessRaw": "/10分", "readiness": 10.0, "action": "1. 跟Rowan討論路寬、容積率、分配室內坪數 2. 決定中和要賣、要留 3. 先生收入、04金額 4. 中和賣or留的前提下，自備的金額設定 5. 設定再買一間的總價、區域", "notes": "其他可登記/貸款的家人/夥伴：自己 (中和賣之前，有房無貸，8成，寬限期；中和賣之後，沒房無貸，8成，有寬限期)。房產經驗：買房自住、出租/輕裝修。目前跟Rowan在討論改建機會。", "progressNote": "", "tagIds": ["t_wait"], "properties": []}, {"id": 8, "name": "劉玟君", "currentCity": "新北市/中和區", "desiredCity": "台北市、新北雙和區", "price": "1100萬", "downPayment": "100-200萬", "decisionMaker": "女兒", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "62", "age": 62, "job": "印刷設計自營商 (自己) / 太平洋房屋仲介 (女兒)", "income": "120萬/年 (女兒)", "readinessRaw": "7分/10分", "readiness": 7.0, "action": "1. 買女兒 非住字樣", "notes": "其他可登記/貸款的家人/夥伴：女兒、自己（女兒當保人）。需求細節：主幹道、商業用地、使用執照建物非住字樣&現況、四樓（含）以下公寓。房產經驗：有買房子裝修（透天2~4F隔套，租金12萬-貸款利息3.7萬=8.3萬/月）的經驗，但沒有整合的經驗。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 9, "name": "廖梨伶", "currentCity": "新北市/板橋區", "desiredCity": "台北市大同中山中正大安，新北板橋中永和", "price": "2500萬", "downPayment": "300-500萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "50", "age": 50, "job": "先生：工程師", "income": "先生：120萬+租金35萬+36萬", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "先生貸760（寬限到2026/7，1. 確認綁約期) 2. 評估名下板橋和永和增貸空間（擇一） 3. 先生這間估價，01變04，可貸出多少 4. 找租金可以cover本息的房子", "notes": "其他可登記/貸款的家人/夥伴：先生；房產經驗：有買永和公寓隔套、板橋預售x2 (自住、收租)", "progressNote": "", "tagIds": [], "properties": []}, {"id": 10, "name": "曾子芸", "currentCity": "台中市/太平區", "desiredCity": "台北市 (信義、南港、中山區)、新竹市", "price": "2500萬 (貸款2000萬，當妹妹保人)", "downPayment": "100-200 萬", "decisionMaker": "登記 & 合資的夥伴", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "", "age": null, "job": "自己：生技藥品檢驗；小妹：旅行社", "income": "自己：230/年；小妹：50-60/年", "readinessRaw": "2分/10分", "readiness": 2.0, "action": "1. 合資跟登記的對象 2. 決定以哪一個區域為主 + 當地可機動看屋的人", "notes": "其他可登記/貸款的家人/夥伴：小妹妹。房產經驗：和朋友一起合資買預售屋 (南投草屯，先出租、看市場情況，增值後出售)。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 11, "name": "曾慶平", "currentCity": "新北/深坑", "desiredCity": "台北市市中心精華地段依照物件條件決定", "price": "~3000萬", "downPayment": "1200萬以上", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "無", "ageRaw": "48", "age": 48, "job": "空服員", "income": "200萬/年", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "1. 租金>本+息 (北市有頂加) 2. 依照物件條件決定", "notes": "其他可登記/貸款的家人/夥伴：自己的。房產經驗：有上過老師的隔套包租保證班，目前有一間位於萬隆捷運站的隔套包租公寓（先生，01科目，約1000萬）。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 12, "name": "林書緯", "currentCity": "台北/內湖 (租, 1.2萬/月套房)", "desiredCity": "台北市/內湖區.中山區 (港墘站~大直站之間)", "price": "1500萬~1800萬", "downPayment": "~450萬", "decisionMaker": "自己", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "43", "age": 43, "job": "外貿協會 (2026年7月)", "income": "100萬/年", "readinessRaw": "9分/10分", "readiness": 9.0, "action": "2026年7月前買到 (1月會知道)。看屋：舊公寓(住三、住四以上) 或華廈 (商三 商四)", "notes": "無額外資訊", "progressNote": "", "tagIds": [], "properties": []}, {"id": 13, "name": "楊昀庭", "currentCity": "苗栗/頭份", "desiredCity": "新竹", "price": "1500萬", "downPayment": "100-200萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "", "age": null, "job": "平面設計業 (具室內設計、軟裝經驗)", "income": "", "readinessRaw": "", "readiness": null, "action": "1. 估價 (若為北富銀則事先詢問) 2. 尋找登記夥伴 (目標總價 1500 萬)", "notes": "具備豐富房產經驗：買過房產 7 次以上、售屋 3 次、裝修 2 次。目前學習包租代管並已取得證照，希望透過「老屋改建保證班」學習整合 know-how 並發展為第二事業。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 14, "name": "童建智吳美慧", "currentCity": "新北/土城", "desiredCity": "新北市板橋、中和；台北市依照物件條件決定（中山區）", "price": "1500-3000萬", "downPayment": "300-500 萬", "decisionMaker": "夫妻一起", "hasProperty": "有", "hasMortgage": "未填", "ageRaw": "46", "age": 46, "job": "7-10年電商自營商（負責人）", "income": "先生、太太：各110萬/年；公司401：各1300-1500/年", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "租金>利息，物件的條件的評估，可以找台北有頂加，租金>利息+被動收入", "notes": "其他可登記/貸款的家人/夥伴：太太。房產經驗：一直很想投資房地產但是尚無勇氣跨出第一步；是夫妻，會一起投入本課程的學習與實務應用，內容會同步理解與討論，希望在後續老屋改建的方向與執行上能有一致的共識。若課程僅能由一人參與，將由女方作為代表。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 15, "name": "簡筱雨", "currentCity": "新北市/三重區", "desiredCity": "新北市板橋、三重；台北市士林、內湖", "price": "3000萬、1000萬", "downPayment": "200-300萬", "decisionMaker": "合夥人", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "40、43", "age": 40, "job": "高通工程師、貿易公司", "income": "200萬、65萬", "readinessRaw": "6分/10分", "readiness": 6.0, "action": "姊姊 01 還完 + 物件選有頂加的（樓下 4雅+1套、頂加大套房），總價3000內，租金要能cover本息有餘+必要時 增加可信任的合夥人", "notes": "房產經驗：合資購買內湖公寓/委託富品隔套/正在整合內湖公寓住戶。職業背景：三井工程/國泰建設營造廠職安稽核。其他夥伴：姊姊、表哥。目標：老屋改建整合、輕裝修共居出租。目前傾向先把內湖公寓整合成功。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 16, "name": "萬天鳳", "currentCity": "台北市/文山區景福街", "desiredCity": "台北市 (中正、金華、龍門)", "price": "2500萬-2700萬", "downPayment": "250 萬", "decisionMaker": "無", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "48", "age": 48, "job": "富邦人壽", "income": "租金132萬+50萬=180", "readinessRaw": "8分／10分", "readiness": 8.0, "action": "要找租金可以cover本息的物件 + 合資的人 or 再多出350萬 for 2500萬總價", "notes": "其他可登記/貸款的家人/夥伴：自己；裝修過五間房子。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 17, "name": "蔡明璋", "currentCity": "臺北市信義區(家人的)", "desiredCity": "臺北市", "price": "3000+萬", "downPayment": "500-800 萬", "decisionMaker": "太太", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "30", "age": 30, "job": "自營商（線上塔羅）", "income": "300萬/年", "readinessRaw": "7分/10分", "readiness": 7.0, "action": "1. 太太房子評估01轉04（加 Eva）或出售 2. 夫妻贈與+先生貸款04 3. 租金>利息", "notes": "其他可登記/貸款的家人/夥伴：太太有1房，水源整宅(科目為01) 600萬，可全數清償改為科目04。房產經驗：自己買案子合法隔套 (永和建物31p, 土持10p)", "progressNote": "", "tagIds": [], "properties": []}, {"id": 18, "name": "蔡淯思", "currentCity": "台北/松山", "desiredCity": "台北市、新竹市", "price": "3000萬", "downPayment": "200-300萬", "decisionMaker": "自己", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "56", "age": 56, "job": "ERP", "income": "200萬/年", "readinessRaw": "7分/10分", "readiness": 7.0, "action": "1.借松山的04還台中的01 2.公司給個人收入的部分確認 3.找的物件必須租金>本息", "notes": "房產經驗：松山自住、台中出租、宜蘭預售屋。目標：2026年買到有高度改建潛力的房子，作為第二事業。想做商務中心。目前居住地備註：自有，離妹妹近＋出差方便。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 19, "name": "蘇芷儀", "currentCity": "新北市/土城區", "desiredCity": "台北市中山區", "price": "1500萬~1800萬", "downPayment": "400萬", "decisionMaker": "夫妻一起", "hasProperty": "有", "hasMortgage": "無", "ageRaw": "40", "age": 40, "job": "警察", "income": "110-120萬/年", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "即將交屋的預售 海山站 200m 2026/3 交屋，收租，之後再出售", "notes": "目前居住地為太太名下且無貸款。其他可登記/貸款家人為先生。房產經驗：1.房屋買賣附買回 2.預售屋加價換約(桃園A7) 3.合法隔套出租(三重，朋友的名字) 4.毛胚屋裝修後出售 5.協助親友購入自住房屋。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 20, "name": "諸紀平", "currentCity": "北市/大安區", "desiredCity": "台北、新北、高雄", "price": "3000-3500 萬", "downPayment": "800-1200 萬", "decisionMaker": "太太", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "60", "age": 60, "job": "外商科技公司 財務", "income": "250-300 萬/年", "readinessRaw": "10分/10分", "readiness": 10.0, "action": "無明確記載購屋計畫或時程。", "notes": "1. 其他可登記/貸款的家人/夥伴：先生。 2. 房產經驗：雙北/桃園/高雄有買房經驗，本身為室內設計師，整修過很多房屋，目前有多間房屋收租中（台北師大路公寓一樓、新北板橋江子翠透天、桃園較多、高雄火車站透天2F+2F）。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 21, "name": "謝易積", "currentCity": "台北市/中山區", "desiredCity": "台北市中山區、大安區、信義區", "price": "", "downPayment": "50-100 萬", "decisionMaker": "自己", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "", "age": null, "job": "", "income": "", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "1. 把01還掉，有房無貸(無01貸款) (建議: 1 + b) a. 可貸款8成，只是沒有寬限期: 租金>本+息(北市有頂加) b. 現金買，貸款04出來，繳利息，租金>利息，同時貸款出來的錢 放理財商品 (ex. 月配息基金)", "notes": "房產經驗：1. 自住一間裝修（自己的，390萬 01 + 380萬 04）。2. 有繼承的房子（祖產，與樺龍建設合建分售、分屋）在準備安排驗屋（分售資金拿到後7000萬，會把自住的 04 結清，自己x1，無貸款）。3. 桃園青埔店面收租中（01 貸款1100萬）。4. 有資金之後想再買更多的房地產。其他可登記/貸款的家人/夥伴：自己。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 22, "name": "賴秋妙", "currentCity": "新北市蘆洲區", "desiredCity": "新北市三重區、台北市中山區、大同區", "price": "1800-2000萬以內", "downPayment": "300-500 萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "40", "age": 40, "job": "工程師 (自己、先生)", "income": "各120-130萬/年", "readinessRaw": "6分/10分", "readiness": 6.0, "action": "1.先生04還完+夫妻贈與+自己再貸04出來（先生可當保證人） or 租金>本息（北市頂加） 2.第四間：隔套算得過+老屋改建也有高度潛力跟價值的翻倍作為隔套收租額外出場方式", "notes": "其他可登記/貸款的家人/夥伴：先生貸款 or 買自己+全現+貸款04；房產經驗：兩間合法隔套（先生，蘆洲 04 貸款 400; 弟弟，下新莊 01 + 04），僅隔套裝修經驗。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 23, "name": "鍾智媛", "currentCity": "台北/中山", "desiredCity": "台北/中山、大同、大安", "price": "~3000萬", "downPayment": "50-100萬", "decisionMaker": "", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "39", "age": 39, "job": "律師", "income": "200萬/年", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "1. opm 2. 準備2-3個登記名義人/股東 的人選 3. 買公司，需無住字樣+負責人連帶保證人", "notes": "其他可登記/貸款的家人/夥伴：朋友。房產經驗：1. 商務中心 2. 包租代管。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 24, "name": "陳毓婷", "currentCity": "新竹縣/竹北市", "desiredCity": "台北中山區、新北新店區、新竹縣市小透天", "price": "1750萬", "downPayment": "600萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "49", "age": 49, "job": "公務員 (戶政事務所 竹北)", "income": "116萬/年 (80萬/年薪資 + 36萬/年保險)", "readinessRaw": "7分/10分", "readiness": 7.0, "action": "1. 把01還完，租金>本息 2. 有合適物件，賣股票，貸款完成後，再考慮貸款彰化房子 04 出來補股票部位。過半年或一年後才動用買房。", "notes": "配偶經營蝦皮電商，每月營業額約6-7萬。目前困難點是手頭資金不多且有限貸令。曾有3次買賣房產經驗。想學習老屋改建與投資。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 25, "name": "陳淑娟", "currentCity": "台北/信義", "desiredCity": "台北市信義區、內湖、文山區(萬隆、景美)", "price": "1600萬~3000萬+", "downPayment": "800萬~1200萬", "decisionMaker": "自己", "hasProperty": "有", "hasMortgage": "無", "ageRaw": "54", "age": 54, "job": "上市公司財務主管", "income": "200萬~250萬/年", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "租金>本金＋利息 (北市有頂加) 有餘", "notes": "房產經驗：20年前買公寓自住，內部簡單裝修。其他可登記/貸款的家人/夥伴：自己。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 26, "name": "陳淑汶Mabel", "currentCity": "台北市內湖區", "desiredCity": "台北市大安區、中正區、中山區；新北市中和區、永和區", "price": "3000萬+", "downPayment": "300-500 萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "50", "age": 50, "job": "科技業", "income": "250-300萬/年", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "1. 先生繼承、贈與：租金是否大於本息（有頂加）", "notes": "其他可登記/貸款的家人/夥伴：先生 (繼承?：8成+寬限；贈與?：8成+沒寬限)。房產經驗：1. 買自住房及跟朋友合作共居公寓經驗。2. 先生在桃園有房子(過戶繼承,無貸款), 台北房子是登記在名下(有貸款), 詢問若台北老屋改建還適合登記在先生名下嗎？", "progressNote": "", "tagIds": [], "properties": []}, {"id": 27, "name": "陳靖薇", "currentCity": "台北/內湖", "desiredCity": "雙北", "price": "1200萬~4000萬", "downPayment": "500萬", "decisionMaker": "太太為主，先生為輔", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "51", "age": 51, "job": "廣告業", "income": "現金流：26萬/月，公司401營收：7萬/月", "readinessRaw": "9分/10分", "readiness": 9.0, "action": "業務要協助包裝，用26萬/月去認列收入", "notes": "房產經驗：買過新成屋、老屋；目前經營共生宅；喜歡改造老屋，想經由投資老屋改建增加資產。目標：都更know how、買有改建潛力的房子、月現金流+改建增值。租/自住房無憂。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 28, "name": "饒珮伃", "currentCity": "台北市大安區(公婆的)", "desiredCity": "台北大安/信義/中山、新北永和", "price": "~1800萬", "downPayment": "200-300萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "37", "age": 37, "job": "信義房屋資訊部門", "income": "120萬/年", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "空字串", "notes": "其他可登記/貸款的家人/夥伴：誌賢。房產經驗：1. 先生（誌賢）曾經參加2021隔套收租保證班，以我的名義買房（內湖三總附近）。2. 先生有跟師徒班同學 Peggy 合資東湖公寓隔套收租。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 29, "name": "魏悠悠", "currentCity": "新北/林口", "desiredCity": "台北市中山區", "price": "1800萬-2000萬", "downPayment": "300-500萬", "decisionMaker": "妹妹", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "39", "age": 39, "job": "妹妹: 外商業務; 自己: 人壽經理", "income": "妹妹: 100萬/年; 自己: 200萬/年", "readinessRaw": "", "readiness": null, "action": "1.跟妹妹討論 (收入可到130萬-140萬/年) 2. 評估夫妻贈與+貸款轉給先生的能力", "notes": "其他可登記/貸款的家人/夥伴：妹妹、自己。房產經驗：1. 裝潢自己家 2. 成立包租代管公司一年 (地址數5/房間數30+，松山、大同區，先生 full time / 自己還在富邦)。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 30, "name": "黃冠霖", "currentCity": "台北/萬華", "desiredCity": "台北/大同、中山、中正或其他區域", "price": "2500萬~4000萬", "downPayment": "300萬~500萬", "decisionMaker": "姊姊", "hasProperty": "有", "hasMortgage": "無", "ageRaw": "34", "age": 34, "job": "證券業", "income": "150萬/年", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "1. 租金>本+息 (頂加 or 3雅+1套) 2. 評估基隆「房」產權集中", "notes": "姊姊(41歲)任職銀行，年收200萬。兩人合計自備款300-500萬。目標：買到有改建機會的物件，加速累積資產。想從「老屋改建保證班」獲得：1. 買到有改建機會的物件，加速累積資產 2. 希望未來能在台大生活圈置產 3. 具體學會評估物件改建條件的know how，與完整的流程。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 31, "name": "黃懷瑩", "currentCity": "桃園市/桃園區", "desiredCity": "雙北地區/不受限區域 中正、大安、信義 板橋、中永和", "price": "100萬 1500萬 150萬 2000萬", "downPayment": "500-800 萬", "decisionMaker": "自己決定", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "38", "age": 38, "job": "台北上班 科技業；本身也從事輕裝修軟裝的工作 (先生 公司營運/行銷、工程full time、軟裝 full time, 丈量場勘 part time)", "income": "100-150萬/年", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "確認薪資+評估合適的物件", "notes": "其他可登記/貸款的家人/夥伴：大嫂、以前的同事。房產經驗：1. 有輕裝修出租/買賣、隔套出租/買賣、二房東的經驗。2. 自己本身也從事輕裝修軟裝的工作。", "progressNote": "", "tagIds": ["t_wait"], "properties": []}, {"id": 32, "name": "黃珮茹", "currentCity": "花蓮/花蓮市", "desiredCity": "台北市/大安、中正、中山", "price": "2000萬~3000萬+", "downPayment": "500萬~800萬", "decisionMaker": "自己、兒子", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "58", "age": 58, "job": "中醫師", "income": "400萬~500萬/年", "readinessRaw": "7分/10分", "readiness": 7.0, "action": "1.自己：01還掉，再買，租金>本+息 (北市頂加) 2.兒子：貸款資格，如總價2000萬，可以舉證的年收入130-140萬 or 媽媽當保證人", "notes": "房產經驗：花蓮2間房自住及營業；林口1房出租後近期賣出；林口國宅裝修(媽媽住)。其他可登記/貸款家人：自己、兒子。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 33, "name": "黃睿文", "currentCity": "新北/三重", "desiredCity": "台北/大同、南港、大安", "price": "1500萬~2500萬", "downPayment": "600萬", "decisionMaker": "先生、爸爸", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "34", "age": 34, "job": "博物館", "income": "90萬/年", "readinessRaw": "7.5分/10分", "readiness": 7.5, "action": "3月賣三重，賣掉交屋後開始密集看屋", "notes": "先生收入250萬/年(工程師)，貸2130萬。可登記/貸款的家人/夥伴：自己 (貸款完再離職)。房產經驗：自家輕裝修、以短期內出售為目標的裝潢。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 34, "name": "黃郁婷", "currentCity": "台北市/萬華區", "desiredCity": "台北市/大同區、中山區、中正區", "price": "~2000萬", "downPayment": "300萬-500萬", "decisionMaker": "弟弟", "hasProperty": "有", "hasMortgage": "無", "ageRaw": "42", "age": 42, "job": "合庫", "income": "200萬/年", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "1. 租金>本金+利息 (北市有頂加) 2. 考慮要不要過基隆的房子1/2給弟弟：提供謄本、請銀行專人協助估價或實價登錄附近條件相仿的透天 vs. 土地評定現值+建物評定現值，如差距大，親屬間交易。", "notes": "其他可登記/貸款的家人：弟弟 (可當他保人)、自己。適合總價詳細計算：信貸近300萬，每月還款~4萬，16.6*2/3=10萬繳貸款，10-4=6萬/月 for房貸=總價為1898 萬，貸款 1518 萬。房產經驗：與弟弟共同持有各1/2的基隆市房地產。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 35, "name": "陳秒螢", "currentCity": "新北市永和區", "desiredCity": "新北市永和區、台北市", "price": "自己：1600萬，同學：3000萬", "downPayment": "200-300萬", "decisionMaker": "合夥人 (同學)", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "", "age": null, "job": "同學：科技業", "income": "同學：年收入300萬", "readinessRaw": "8分", "readiness": 8.0, "action": "1. 同學01轉04 2. 找物件，租金>本息 (台北市、頂加)", "notes": "房產經驗：1. 隔套 2. 整層住家裝修 3. 目前整合社區都更。其他可登記/貸款的家人/夥伴：自己或同學。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 36, "name": "陳柏蓁", "currentCity": "台北市松山區", "desiredCity": "台北市大安區", "price": "自己：1500-1800萬（中山區、大同區）；先生保人：3000萬（大安區）", "downPayment": "300-500萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "44", "age": 44, "job": "保險業", "income": "自己：年收入約110-120萬；先生：年收入500-600萬", "readinessRaw": "7分/10分", "readiness": 7.0, "action": "1. 夫妻贈與公寓給先生，名下無房+科目4 可用先生重新貸款，8成+寬限期。 or 2. 找的物件，租金>本+息 (台北市頂加合法裝修 2/1/2, 一個出入口)", "notes": "房產經驗：1. 自己名下買一間公寓（換屋後直接出租，松山）；2. 先生名下買一間繼承華廈（施行土地法34-1，目前自住，松山）", "progressNote": "", "tagIds": [], "properties": []}, {"id": 37, "name": "陳建鴻", "currentCity": "台北市中正區", "desiredCity": "台北市（文山新北投除外）、新北市板橋", "price": "~3000萬", "downPayment": "300-500 萬", "decisionMaker": "老婆", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "37", "age": 37, "job": "台大醫院醫師", "income": "200萬/年", "readinessRaw": "8分／10分", "readiness": 8.0, "action": "1. 租金 > 本 + 息 (3房+2廳 => 3雅 +1套 = 1.35x3+1.85=5.85) + 頂家 (2套房 1.85*2=3.7, total 9.5/月 ==> 總價3000, 平均一坪100, 30平", "notes": "之前買過一間板橋自住房已出售；目前有一間板橋隔套收租中，且在都更整合中（三輝建設）。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 38, "name": "陳冠廷", "currentCity": "北市大安區", "desiredCity": "台北市信義區、大安區", "price": "2000萬-2200萬", "downPayment": "100-200萬", "decisionMaker": "合資的股東、老婆", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "42", "age": 42, "job": "IC 應用工程師", "income": "2025年100萬，常態150萬/年 + 71萬租金", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "必要的話老婆當保證人(100萬/年 2026/3回去+84萬/年租金) + 合資", "notes": "目前租屋且自有房產出租（老婆名下）；有隔套、短期買賣、共居投資經驗，在雙北、基隆有過投資；目前太太名下有一間位於和平東路麟光站的5F公寓。信貸綁約到2026/8。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 39, "name": "陳俊瑋", "currentCity": "台北市內湖區", "desiredCity": "台北市內湖區、台北市南港區、高雄市前鎮區（亞灣）", "price": "1100-2000萬", "downPayment": "200-300萬", "decisionMaker": "登記人、父母", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "39", "age": 39, "job": "服飾業", "income": "妹妹70萬、女友110萬", "readinessRaw": "6-10", "readiness": 6.0, "action": "尋找無房登記人並提升年收入至150萬", "notes": "目前以二房東方式經營共生公寓，具備裝修經驗。家人與夥伴狀況：妹妹無房、妹婿有房貸(04)、女友(獸醫)無房。目前居住於內湖（租屋），考慮是否移居淡水。目標購入總價2000萬之房產。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 40, "name": "陳玟琦", "currentCity": "桃園市龍潭區（公司宿舍）", "desiredCity": "台北市中正區、中山區、大同區；另提及關西、龍潭", "price": "1500-2000萬", "downPayment": "500萬（保單借款），另有堂哥買房款項預計2026-2027年入帳共500萬", "decisionMaker": "太太為主", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "38", "age": 38, "job": "家管（自己）、中科院技術師（先生）", "income": "年收入約214萬（自己100萬/年，先生114萬/年）", "readinessRaw": "7", "readiness": 7.0, "action": "2026年時間、資金皆到位，希望可以實踐一路所學。目前計畫買自己的名字，預算約2000萬，自備款500-600萬。", "notes": "具備豐富房地產相關經驗（曾任店務秘書、參加包租公保證班及都更課程）。曾處理老屋裝修。目前看房區域包括關西、龍潭，計畫以自己名義購置約2000萬自住房。喜歡透過看房認識世界。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 41, "name": "陳怡菁", "currentCity": "台北市大安區", "desiredCity": "台北市全區、大安區、信義區、松山區", "price": "4000萬 (若賣掉現有房產後)", "downPayment": "300-500 萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "空字串", "age": null, "job": "先生：外派，科技業", "income": "先生：300萬/年", "readinessRaw": "9分／10分", "readiness": 9.0, "action": "1. 針對自住這間，先評估「危老 + 委建 + 全案管理」條件，和進場整合，趁危老2.0上路前 (2027/5)，如果有成=>改建。如果阻力太大，賣掉。 2. 如果賣掉，先生可再買4000萬（大安區、信義區、松山區）", "notes": "房產經驗：買賣過幾間自住房、也做隔套收租。為退休金努力。手上有兩間老屋，希望能評估，做最合適的整理。先生貸款 3000 萬。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 42, "name": "郭芸緁", "currentCity": "台中市", "desiredCity": "台北市", "price": "1500-1800萬", "downPayment": "200-300萬", "decisionMaker": "合夥人", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "50", "age": 50, "job": "自營商（廢棄物清運）", "income": "年收入200萬（另有弟弟年收入100萬）", "readinessRaw": "7", "readiness": 7.0, "action": "1. 女兒的收入紀錄可以邊做", "notes": "房產經驗：1. 購買預售屋出租（無貸款，出租中，台中龍井，自己的名字，目前屋齡3年）與中古屋（原先居住的房子，整理中，待出租，無貸款）；2. 最近剛裝修完自住的新購入中古屋（01貸款，約1100萬）。其他可登記/貸款的家人/夥伴：弟弟、弟媳、女兒 (媽媽當保人)、自己。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 43, "name": "許鳳美", "currentCity": "台北市大安區", "desiredCity": "台北市信義區廣慈園區（市中心其他區域也可）", "price": "1700萬-1900萬", "downPayment": "450萬", "decisionMaker": "另一半", "hasProperty": "有", "hasMortgage": "無", "ageRaw": "空字串", "age": null, "job": "自己：貿易業，另一半：茶葉服務業", "income": "自己：150萬/年，另一半：70萬/年", "readinessRaw": "8分／10分", "readiness": 8.0, "action": "1.做年終獎金紀錄 + 貸款前做股票財力 2.第一期頭期款金流留意 3.新莊增貸評估：富邦、永豐", "notes": "房產經驗：2020年繼承房地產分配，與姊姊合購新莊捷運站附近房產（四樓公寓與五樓頂加），目前出租中。2022年參加包租課程，開發並管理多個物件，目前共管理五個物件出租與維護。其他可登記/貸款家人：自己名下無寬限期，另一半名下目前無房產且有寬限期。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 44, "name": "許瑞雯", "currentCity": "台北市松山區", "desiredCity": "台北市大同區、植物園附近", "price": "1000-1200萬", "downPayment": "200-300萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "55", "age": 55, "job": "國小老師", "income": "年收入130萬", "readinessRaw": "7", "readiness": 7.0, "action": "尋找可接受切結書的銀行辦理8成房貸及1成裝潢貸款，並於18個月內售出基隆房產。", "notes": "目前租屋且明年不續租，家有四口。名下基隆房產漏水訴訟中，計畫售出作為頭期款。先生名下房產較多且有貸款紀錄，故欲以個人名義購屋，目標於明年8月退休前完成購屋與貸款。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 45, "name": "許玉堇", "currentCity": "台北市松山區", "desiredCity": "台北市大安、松山、南京復興；新北：中和景安站附近", "price": "1500-2000萬", "downPayment": "800-1200 萬", "decisionMaker": "自己", "hasProperty": "有", "hasMortgage": "無", "ageRaw": "35", "age": 35, "job": "姊姊：資訊產品貿易，妹妹：星展銀行", "income": "姊姊：144萬/年，妹妹：93萬/年", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "1. 確定小孩的意願跟規劃 2.準備姊姊的自備、貸款額度 3. 買自己的 (租金>本息)，貸款可先抓5成，保留現金餘裕+用租金養房子", "notes": "想從「老屋改建保證班」學會評估物件改建條件的方法，找到改建潛力高的老屋，自住或收租；買到具備改建潛力的房子，為孩子置產。姊姊適合總價2000萬，妹妹適合總價1500萬。目前居住地備註為「自己」。姊姊為其他可登記/貸款的家人/夥伴。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 46, "name": "莊慧樺", "currentCity": "新北市新莊區", "desiredCity": "雙北（不限區域，依物件為主）", "price": "3000萬/人（額度2400萬/人）", "downPayment": "300萬", "decisionMaker": "自己", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "45", "age": 45, "job": "休息（自己）", "income": "租金144萬/年 + 50萬/年（自己）", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "請銀行評估，如果把01還掉，貸款04，可貸多少租金>本+息 (頂加 or ex. 1套3雅)", "notes": "房產經驗：將兩棟透天厝裝修成一層一戶，並整層出租，且在2018年上過老師的課程後懂得如何與房客溝通並提高租金，其中有兩間曾請老師協助裝修，順利出租。目前都自行挑選房客，且房客都非常穩定，也感謝老師的指導。喜歡共好的感覺，透過出租給合適的房客，感受房客因好的租屋空間及良好溝通，很願意維持環境，雙方都有很好的正向循環。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 47, "name": "莊慧劍", "currentCity": "新北市永和區 (租)", "desiredCity": "台北市", "price": "1600-2000萬、2000-2500萬", "downPayment": "300-500 萬", "decisionMaker": "無", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "無", "age": null, "job": "無", "income": "無", "readinessRaw": "8分／10分", "readiness": 8.0, "action": "無", "notes": "房產經驗：1. 大道路已有房子順利都更（12月24建商送件）；2. 松隆路（已過8成，亞昕建設）；3. 已有隔套收租和整層收租的物件；4. 以及二房東的物件。想從「老屋改建保證班」獲得：1. 補足都更、改建、土地的專業，有助於目前持有房子的改建流程；2. 學會如何評估改建、分回條件。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 48, "name": "莊詠智", "currentCity": "新北市三重蘆洲區", "desiredCity": "台北市大同區、中山區；新北市三重區", "price": "1500萬-1800萬", "downPayment": "150萬", "decisionMaker": "合資的家人", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "35", "age": 35, "job": "中華電信", "income": "年收入140萬", "readinessRaw": "6分/10分", "readiness": 6.0, "action": "1.合資的家人 for 自備款", "notes": "目前居住地為爸媽的。其他可登記/貸款的家人/夥伴為自己。房產經驗：有過將家中出租房進行整修和修繕，以及工作上協助客戶機房整建管理的相關經驗。適合總價中備註 380萬-460萬自備。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 49, "name": "張曜宇", "currentCity": "台北市南港區", "desiredCity": "台北市", "price": "1500萬", "downPayment": "300-500 萬", "decisionMaker": "夫妻一起", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "45", "age": 45, "job": "老師", "income": "100萬/年", "readinessRaw": "5分／10分", "readiness": 5.0, "action": "1. 太太01還掉（如內湖有轉04,優先用先生，並辦夫妻贈與）", "notes": "其他可登記/貸款的家人/夥伴：太太。房產經驗：1. 隔套收租（內湖，太太的名字，貸款01餘額：____），目前有建商談都更中，內湖站附近，社區型公寓，開完區分所有權人大會，表決通過要驗氯離子，12/22檢驗。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 50, "name": "張馨尹", "currentCity": "台北中正區", "desiredCity": "台北大安區、南港（昆陽、南港車站）、中山區", "price": "2000萬以下", "downPayment": "100-200萬", "decisionMaker": "媽媽（淑芬）", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "40", "age": 40, "job": "牙醫師", "income": "年收入250+萬", "readinessRaw": "7分", "readiness": 7.0, "action": "1. 買自己的，找商業用地+建物用途沒有「住」字樣，收支比每100萬年收可以負擔1200萬貸款，把第一間和第二間的額度加總計算。2. 找親友一起合作，名下如有房無貸，租金>本+息（北市4F+頂加的物件）。", "notes": "2020購入中正區自住房（新成屋）及此屋裝潢；宜蘭兩層樓公寓收租中（爸媽以前買的），沒有貸款。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 51, "name": "張嘉恬", "currentCity": "新北市永和區", "desiredCity": "台北新北（看物件條件決定）", "price": "1500萬（新北、北市中山大同）", "downPayment": "300-500 萬", "decisionMaker": "自己", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "空字串", "age": null, "job": "業務", "income": "年收入100萬", "readinessRaw": "7分/10分", "readiness": 7.0, "action": "2/14前或七月回國簽委約", "notes": "對老屋改建很有興趣，希望能買到成功改建。目前一年在台灣的時間大約只有4個月（1, 7, 10月）。房產經驗包括隔套（三重，自己的，2026/10滿五年）與分戶（自用）。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 52, "name": "張淑真", "currentCity": "台北市中山區", "desiredCity": "台北市大安區、中正區、信義區、中山區", "price": "1800萬-2000萬（秋伶）", "downPayment": "200-300萬", "decisionMaker": "夫妻+潛在的合作夥伴", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "50", "age": 50, "job": "東吳大學", "income": "70-80萬/年/人（秋伶：120-130萬/年）", "readinessRaw": "5分/10分", "readiness": 5.0, "action": "1.賣掉預計的兩間，買先生名字 or 2. 賣掉預計的兩間+找一個適合登記的夥伴", "notes": "房產經驗：買過5間房、賣過2間房，裝修5間，沒有整合經驗。目前持有房產包括：龍江路（長輩的，沒貸款）、渭水路（長輩的，有貸款）、溪州街（先生的，有貸款）、景仁街（太太的，有貸款）、高雄（太太的，有貸款）。其他可登記/貸款家人：先生郭秋伶。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 53, "name": "高孟鍬", "currentCity": "彰化", "desiredCity": "雙北捷運附近", "price": "2000萬", "downPayment": "500-800萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "50", "age": 50, "job": "工程師", "income": "年收入200萬", "readinessRaw": "7", "readiness": 7.0, "action": "1. 確保租金能覆蓋本息。2. 評估雙北合資或分工模式的可行性。", "notes": "擁有台中透天收租經驗。希望透過課程學習老屋改建評估與流程以獲利。因需兼顧三個小孩、本業及照顧長輩，偏好輕鬆的裝修與代租管模式。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 54, "name": "馬如頤", "currentCity": "台北市中山區（租）", "desiredCity": "台北市南港區、中山區", "price": "1500-1800萬", "downPayment": "400-500萬", "decisionMaker": "先生", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "48", "age": 48, "job": "電子業", "income": "150萬", "readinessRaw": "9分/10分", "readiness": 9.0, "action": "學會精準評估物件", "notes": "希望購入區域包含台北市南港區（捷運藍線）及中山區。房產經驗：之前買賣過三間房、裝修過兩間自住房。參加課程目標：找到一個有都更潛力的物件進場並買到好價格、精通都更 know how、仲介物件引薦。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 55, "name": "翁慈貝", "currentCity": "台北市中山區", "desiredCity": "台北市中山區、大同區", "price": "2000萬", "downPayment": "100-200萬", "decisionMaker": "登記和合資的家人（妹妹）", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "44", "age": 44, "job": "護理師", "income": "年收入180萬", "readinessRaw": "5", "readiness": 5.0, "action": "確認有機會可以登記的家人 + 問自住這間的增貸，先投資理財 + 新買的這間要找不追頭期款金流的銀行貸款 (ex. 台北富邦)", "notes": "房產經驗：買過江翠北和高雄橋頭的預售屋，成屋之後小賺售出。自備款不含原有的股票投資部分。其他可登記/貸款的家人：妹妹。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 56, "name": "徐敏慧", "currentCity": "新北市中和區湯泉", "desiredCity": "台北市中正大同：雙子星、萬華區：西門附近", "price": "2700萬-2800萬", "downPayment": "500-800萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "48", "age": 48, "job": "資訊業客服", "income": "年收入60萬（先生180萬）", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "1. 問湯泉可否換約，再考慮要不要同步出售淡水 or 合約讓渡給妹妹", "notes": "房產經驗：賣高雄繼承老屋，買自住預售屋。先生賣掉高雄繼承的老屋，成交價比大姑原先預估的多一倍；雖然想先買投資房，但一直未成交，反而是自住的預售屋，今年交屋了；上上週老師推薦的紅樹林預售屋，雖然有點手忙腳亂，但也成交了。希望可以確切的盤點手上的資源，明年進入老屋改建的新領域。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 57, "name": "洪慧寧", "currentCity": "台南市北區", "desiredCity": "高雄、台北、新北", "price": "900-1000萬", "downPayment": "50-100萬", "decisionMaker": "先生", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "49", "age": 49, "job": "奇美醫院行政", "income": "年收入60萬", "readinessRaw": "7", "readiness": 7.0, "action": "1. 聚焦高雄特定區域的商用透天，啟動危老改建。2. 與先生討論保證人及自備款來源。3. 參與線上及實體課程。", "notes": "目前居住於台南市北區（房產為先生所有，無房貸）。其他可登記或貸款的家人為自己。房產經驗：無。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 58, "name": "柯春梅", "currentCity": "台南 (自己的，沒有貸款)", "desiredCity": "台北", "price": "", "downPayment": "100-200 萬", "decisionMaker": "", "hasProperty": "有", "hasMortgage": "無", "ageRaw": "", "age": null, "job": "", "income": "", "readinessRaw": "", "readiness": null, "action": "暫時先不規劃新購計畫，先出租＋台北評估改建條件", "notes": "1. 去年有賣台南的房子。 2. 目前有買台北的房子 (松山區民生段141-17地號)，當初是為了都更才買的。 3. 需評估台北的房子 (朋友的基地 松山區民生段144地號：璞真建設，剛過8成，要遴選估價師..)。 4. 台中房子 (市政一號院，出租，之後再賣)。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 59, "name": "施宜妏", "currentCity": "台北市內湖區AIT區", "desiredCity": "台北市、新北市（看物件條件決定）", "price": "1500萬", "downPayment": "200-300 萬", "decisionMaker": "自己決定（需告知媽媽、哥哥姊姊）", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "媽媽：66歲", "age": 66, "job": "銀行後勤", "income": "自己：200萬/年、收租300=1250萬，每月5.3萬，還款能力11萬-5.3萬=5.7萬", "readinessRaw": "8分／10分", "readiness": 8.0, "action": "合適、有高度改建機會的物件", "notes": "其他可登記/貸款的家人/夥伴：1. 自己(01轉04) 2. 媽媽 (自己當她保人)；房產經驗：買過1間自住、1間裝修後出租，都在內湖。", "progressNote": "", "tagIds": ["t_wait"], "properties": []}, {"id": 60, "name": "姚巧玲", "currentCity": "台北市中山區(租)", "desiredCity": "台北市中山區、大安區", "price": "2000萬 (自備設定：500萬)", "downPayment": "100萬 (不含信貸餘額300萬，美股境外300萬)", "decisionMaker": "Andre", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "37", "age": 37, "job": "包租代管合資 (負責人 51%)", "income": "年薪約180萬 (月薪10萬+季獎金15-20萬)", "readinessRaw": "未填寫", "readiness": null, "action": "確認信貸5.5萬/月+房貸1600萬 (6.3萬/月), 月收10萬，股票須再多少淨值。", "notes": "主要經驗在包租代管及輕裝修改造房子。對買房的困惑，主要還是卡在自己的買房條件及是否要找登記人比較合適。希望2026年買到有高度改建潛力的房子，具備評估物件條件的能力，並有團隊可以合資執行。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 61, "name": "凃馨文", "currentCity": "新北市三峽區（另一半的）", "desiredCity": "雙北皆可，依照物件條件決定", "price": "1500萬", "downPayment": "300-500 萬", "decisionMaker": "自己決定", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "40", "age": 40, "job": "家電產業 b2b 業務", "income": "110萬/年", "readinessRaw": "8分／10分", "readiness": 8.0, "action": "具體評估物件", "notes": "房產經驗：曾委託設計師協助全室拆除翻修一間約 15 年的中中古屋（三峽）。但考量更貼近使用習慣，主動提出格局調整與動線規劃的需求；後期因設計師提供的建材與設備無法符合預期與預算，改採自行選樣並採購適合的材料，並協調相關細節。這次整修更熟悉中古屋改造的流程，也累積了選材與溝通協調的經驗。想從「老屋改建保證班」獲得：1. 具體知道怎麼評估改建的條件、流程；2. 2026年買到有高度改建機會的房子，創造資產翻配；3. 幫助處理彰化埔心家族的土地。", "progressNote": "", "tagIds": ["t_wait"], "properties": []}, {"id": 62, "name": "邱淳孝", "currentCity": "新北市新店區", "desiredCity": "台北市、新北市", "price": "2000-3000萬", "downPayment": "500-800萬", "decisionMaker": "自己或合夥人", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "", "age": null, "job": "包租代管公司負責人、房地產投資者", "income": "年收入100萬", "readinessRaw": "8", "readiness": 8.0, "action": "1.01轉04", "notes": "房產經驗：自己有包租代管公司，也有投資房地產買賣裝修收租出售獲利的經驗（收租：板橋x3、新莊x1，自住：新店，大致上都已轉為04貸款）。其他可登記/貸款的家人/夥伴：爸爸、媽媽、合夥的夥伴。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 63, "name": "林姿廷", "currentCity": "台南市永康區", "desiredCity": "高雄市左營區、鼓山區、新興區、苓雅區、前鎮區、鹽埕區", "price": "1000-1300萬", "downPayment": "200-300萬", "decisionMaker": "自己", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "36", "age": 36, "job": "統一企業", "income": "年收入120萬", "readinessRaw": "7", "readiness": 7.0, "action": "優先評估高雄舊市區及火車站周邊（新興、苓雅、前鎮、鹽埕），左營及鼓山區暫不評估。", "notes": "名下無房產房貸。目前居住於台南永康父母家。有信貸約150萬（2024/9撥貸，月還1.5萬）。自備款約200-300萬，形式為股票。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 64, "name": "林柏廷", "currentCity": "新北市板橋區", "desiredCity": "台北市士林區", "price": "1500-2000萬", "downPayment": "300-500萬", "decisionMaker": "配偶", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "35", "age": 35, "job": "金融業", "income": "年收入100-120萬", "readinessRaw": "8", "readiness": 8.0, "action": "增加可舉證的收入（例如：租約、斜槓等）", "notes": "目前居住地標註為自有，但名下填寫無房產。房產經驗包括購買自住房。希望透過老屋改建達到進可攻退可守、租金自給自足，並買到具危老改建潛力的物件，且有團隊協助整合。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 65, "name": "林品紘", "currentCity": "台北市士林區", "desiredCity": "雙北（北投、士林、中山、大同、松山、板橋、三重）", "price": "1500-2200萬", "downPayment": "300萬以上", "decisionMaker": "配偶", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "38", "age": 38, "job": "新光醫院行政", "income": "年收入約112萬（另有股票淨值200萬，約當50萬/年）", "readinessRaw": "8", "readiness": 8.0, "action": "1. 確認配偶名下房產是否為繼承。2. 若非繼承則評估太太貸款寬限期與租金收益（目標18xx萬總價房產）。", "notes": "配偶可協助登記/貸款（額度約400萬），目前貸款於富邦人壽（3年寬限期，綁約2年）。具備豐富房產經驗，包括買房隔套及裝修二房東。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 66, "name": "林欣萍", "currentCity": "新北市中和區", "desiredCity": "台北市、新北市（偏好中和附近）", "price": "1000-3000萬", "downPayment": "300-500萬", "decisionMaker": "先生、弟弟", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "40", "age": 40, "job": "公務員", "income": "年收入66萬（另有先生租金84萬/年及媽媽租金48萬/年）", "readinessRaw": "7", "readiness": 7.0, "action": "1. 先生再貸款04額度，未來用於繳清桃園860萬房貸（不貸款），並評估是否將房產贈與給先生，再由先生貸款（評估其收支比），以維持自己名下無房無貸的狀態。2. 確認弟弟合資的意願。", "notes": "1. 房產經驗豐富：2024年7月於新店購入老公寓加頂加收租中（先生名下）；同年購入桃園大園預售屋（預計2027年交屋，登記於自己名下）；今年6月裝修板橋老公寓出租。 2. 目前困擾：因與先生皆已使用首購額度，受限於第二房限貸政策，對後續操作感到迷惘。 3. 投資動向：積極鼓勵家人（如弟弟）利用首購條件參與房產投資，目前持續尋找合適物件。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 67, "name": "林欣雨", "currentCity": "新北市板橋區", "desiredCity": "板橋區、中正區", "price": "1300-1500萬", "downPayment": "200-300萬", "decisionMaker": "弟弟、弟妹、媽媽", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "46", "age": 46, "job": "中華郵政", "income": "合計 > 100 萬", "readinessRaw": "7", "readiness": 7.0, "action": "大致了解合作 candidate 的意向", "notes": "曾有板橋買新賣舊經驗；20年前有裝修經驗；曾標過台中國產署房子；想了解如何評估改建潛力並再買一間；想評估媽媽名下永和公寓改建機會。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 68, "name": "林怡姍", "currentCity": "新北市三重區", "desiredCity": "三重、新莊、中和", "price": "1500萬", "downPayment": "200萬 (另加：媽100萬、妹200萬)", "decisionMaker": "家人", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "30", "age": 30, "job": "科技業", "income": "年收入100萬", "readinessRaw": "8", "readiness": 8.0, "action": "無", "notes": "目前居住地為媽媽的名字，有換屋需求；可登記/貸款人為自己；自備款除本人200萬外，媽媽可提供100萬，妹妹可提供200萬；無房產經驗。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 69, "name": "林卓敏", "currentCity": "台北市大安區", "desiredCity": "台北市大安區、信義區、中正區、中山區、松山區", "price": "2000-2500萬", "downPayment": "1200萬以上", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "47", "age": 47, "job": "教職", "income": "年收入100萬", "readinessRaw": "6", "readiness": 6.0, "action": "1. 與銀行（Tank 或 弘灝）討論先生若再購屋的貸款額度。2. 若有合適物件，評估出售 600 萬股票投入並搭配八成貸款。", "notes": "2023年購入大安區40年公寓並於2024年入住，目前關注老公寓改建事宜。育有一女（4歲）一子（11歲）。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 70, "name": "林典毅", "currentCity": "桃園市（租）", "desiredCity": "自住偏好：北市信義松山內湖、新北新莊；投資：雙北、高雄", "price": "1000 萬-1200 萬", "downPayment": "200-300 萬", "decisionMaker": "none", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "30", "age": 30, "job": "自營商（獨資）", "income": "年營收：目前 700~上看 1000 萬", "readinessRaw": "9 分／10 分", "readiness": 9.0, "action": "有合適的物件要去看屋", "notes": "想要從「老屋改建保證班」獲得：1. 短影音=快速賺錢/存錢，但想累積自己的資產；2. 改建是趨勢，順勢而為，報酬收益賺錢；3. 擁有感；4. 跟地主一起共好的感覺，利他利己。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 71, "name": "林佩君", "currentCity": "台北市文山區(萬隆)", "desiredCity": "台北市大安、中正、中山、松山(小巨蛋)、新北市板橋區", "price": "1200-1500萬", "downPayment": "200-300萬", "decisionMaker": "無 (但會跟哥哥討論)", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "48", "age": 48, "job": "大師房屋(仲介新人)", "income": "包租：8.5萬/月(租金差)；20萬/月(營收)", "readinessRaw": "8.5分", "readiness": 8.5, "action": "貸款時，請業務包裝，以年收入150萬為收入支出比的計算", "notes": "房產經驗：做過共生公寓(向大房東承租、自行裝修後出租)，共4間(板橋x2, 新莊x1, 大安區x1)。需求：買到有改建潛力的房子、累積資產、學習改建知識(稅費、條件)以提供客戶專業建議。準備度8.5/10。", "progressNote": "", "tagIds": ["t_wait"], "properties": []}, {"id": 72, "name": "林中群", "currentCity": "台北市", "desiredCity": "雙北", "price": "", "downPayment": "500-800萬", "decisionMaker": "", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "", "age": null, "job": "", "income": "", "readinessRaw": "", "readiness": null, "action": "", "notes": "之前是包租班的學員；家裡曾在北市中山南京有整合都更案。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 73, "name": "柳昕岑Cindy", "currentCity": "台北市信義區", "desiredCity": "雙北捷運附近", "price": "1800-2200萬", "downPayment": "1000萬（另有東京1000萬台幣）", "decisionMaker": "自己", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "48", "age": 48, "job": "行政秘書（捷運站：六張犁）", "income": "年收入65萬", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "如果有頂加，自己住樓上，樓下做共居，委託代租管。", "notes": "希望購入城市：雙北捷運附近、依照物件條件。適合總價：1800-2200萬，貸款金額1000萬（利息2.1/月，把空的房間租出去）。房產經驗：完全沒有。貸款上有宗教上特殊考量（自住可貸款，投資全現）。想從「老屋改建保證班」獲得：房產活化（共居）、增加收入、有改建的成功案例、地主共好、建立被動收入系統（Eva 基金）。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 74, "name": "沈君益", "currentCity": "新北市林口區", "desiredCity": "台北市大同區、中山區、新北市板橋區", "price": "1600-2000萬", "downPayment": "1200萬以上", "decisionMaker": "", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "", "age": null, "job": "", "income": "年收入120-140萬", "readinessRaw": "", "readiness": null, "action": "", "notes": "買賣裝修經驗不計其數。目前居住地為太太名下。有科目04：週轉金貸款。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 75, "name": "王家濬", "currentCity": "新北市土城區", "desiredCity": "台北市中山區、中正區、新北市板橋區、永和區", "price": "750萬", "downPayment": "50-100萬", "decisionMaker": "朋友（合資評估）", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "33", "age": 33, "job": "遊戲公司翻譯", "income": "年收入50萬+", "readinessRaw": "5", "readiness": 5.0, "action": "無", "notes": "具備豐富房產經驗，包含萬華老屋翻修、板橋合資隔套（2間），目前在新北板橋與新莊代管80多間房並開發包租業務。2025年10月起於台灣房屋新莊副都心擔任仲介。其他可登記或貸款對象包含老婆與朋友。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 76, "name": "王佳筠", "currentCity": "台北市大安區（租）", "desiredCity": "台北市大安區、大同區", "price": "3000+", "downPayment": "300-500 萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "36", "age": 36, "job": "工程師（註：房產經驗提到從事代銷產業9年，擔任建案專案經理6年，擁有不動產經紀人及租賃住宅管理人員證照）", "income": "250萬", "readinessRaw": "8分／10分", "readiness": 8.0, "action": "1. 三重賣掉，買自己 or 先生 或是 直接買先生", "notes": "目前有一間房（三重預售）即將交屋，未來希望脫手購置台北市具增值潛力的物件。去年開啟包租代管及共生公寓的斜槓領域，希望透過老屋改建及包租代管成為房地產投資者及經營者。目前持有不動產經紀人及租賃住宅管理人員證照。目前居住地為租賃。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 77, "name": "王文子", "currentCity": "屏東縣屏東市", "desiredCity": "高雄市（苓雅區、前鎮區、鹽埕區）", "price": "2000萬左右", "downPayment": "800-1200萬", "decisionMaker": "自己為主，先生為輔", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "先生：53", "age": 53, "job": "先生：老師", "income": "年收入150萬", "readinessRaw": "8分", "readiness": 8.0, "action": "1. 高雄舊市區、高雄火車站周邊，新興、苓雅、前鎮，鹽埕，鳳山暫不評估", "notes": "客戶及其先生在高雄、台中、屏東擁有多處房產。目前居住於屏東（先生名下，無貸）。高雄鳳山房產出租中（有貸）。台中七期商辦預售中（預計2030-2031交屋）。台中大樓目前空置規劃出售（有貸）。未來計畫在台中購買預售屋供退休自用。兩人皆為台中人。", "progressNote": "", "tagIds": ["t_wait"], "properties": []}, {"id": 78, "name": "李欣佩", "currentCity": "台北市文山區", "desiredCity": "台北市文山區、中正區、大安區", "price": "1800-3000萬", "downPayment": "300-500萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "40", "age": 40, "job": "醫師", "income": "年收入300萬", "readinessRaw": "8", "readiness": 8.0, "action": "租金大於利息，目標每月1.5萬至2萬收益", "notes": "2021年12月購入文山區中古大樓自住。現職為外商生技公司統計師，目前請育嬰假中。育有兩子。希望學習老屋改建與都更投資。", "progressNote": "", "tagIds": ["t_wait"], "properties": []}, {"id": 79, "name": "李艾莉", "currentCity": "台北市文山區", "desiredCity": "台北市文山區、大安區、中正區", "price": "2000-3000萬", "downPayment": "200萬", "decisionMaker": "先生", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "49", "age": 49, "job": "自營業 (規劃工業蒸氣系統)", "income": "年收入150萬 (401報表1500萬/年)", "readinessRaw": "9分", "readiness": 9.0, "action": "物件看屋、評估、議價.....+需要時合資", "notes": "房產經驗：曾購買新北深坑中古華廈自住並進行翻新。目標：2026年買到具高度改建潛力的房子（大安區尤佳），希望獲得1-2次置產改建經驗，需要他人推動。目前居住地為租賃。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 80, "name": "宋馨巧", "currentCity": "新北市永和區", "desiredCity": "新北市永和區、新店區", "price": "1000-1200萬", "downPayment": "100-200萬", "decisionMaker": "男友", "hasProperty": "有", "hasMortgage": "無", "ageRaw": "34", "age": 34, "job": "韓語補教老師、紐西蘭飲料店", "income": "年收入100萬（若沒去紐西蘭則為80萬）", "readinessRaw": "5", "readiness": 5.0, "action": "確認大妹或男友擔任保人的資格（大妹月收10萬，貸款<3萬）", "notes": "房產經驗：109年買桃園大有社區大樓，114年賣出。目前簽約一間預售屋（桃園大有，預計2030年交屋）。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 81, "name": "吳政勳", "currentCity": "高雄市小港區", "desiredCity": "高雄市中心（南高為主）", "price": "1200萬", "downPayment": "200-300萬", "decisionMaker": "自己", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "37", "age": 37, "job": "中鋼", "income": "年收入100萬", "readinessRaw": "6", "readiness": 6.0, "action": "1. 買誰的名字+配套", "notes": "房產經驗：買自住房。其他可登記/貸款家人：長輩、兄弟姐妹。適合總價備註：高雄市中心商業用地透天。自己另有自備 600-700萬。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 82, "name": "吳怡蓉Connie", "currentCity": "桃園楊梅", "desiredCity": "台北市靠近捷運站", "price": "2000萬~2500萬", "downPayment": "500-800 萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "44", "age": 44, "job": "科技公司（台光電）業務經理", "income": "年收入230萬以上", "readinessRaw": "7分／10分", "readiness": 7.0, "action": "1. 租金>本金+利息", "notes": "房產經驗：買賣約5間，裝修都是找工班，整層收租等增值，無整合經驗。預售：2026 Q4 青埔、2027 Q4 楊梅、2029 Q1 台中。", "progressNote": "", "tagIds": ["t_wait"], "properties": []}, {"id": 83, "name": "何東翰", "currentCity": "台北市中山區", "desiredCity": "台北市大安區、信義區、中山區", "price": "1500萬～2400萬", "downPayment": "300-500 萬", "decisionMaker": "老婆", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "46", "age": 46, "job": "機場接送", "income": "100萬薪資/年+60萬股利/年", "readinessRaw": "8分／10分", "readiness": 8.0, "action": "1. 先評估隔套物件的改建機率 or 出售 (2026/4月滿5年)", "notes": "房產經驗：1. 買過自住電梯整間重新裝潢；2. 買過公寓五樓含頂加做合法隔套收租（忠孝東路五段790巷61弄4號5F）", "progressNote": "", "tagIds": [], "properties": []}, {"id": 84, "name": "朱立華", "currentCity": "新北市新店區", "desiredCity": "新北市新店區", "price": "無", "downPayment": "800-1200萬", "decisionMaker": "無", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "無", "age": null, "job": "無", "income": "無", "readinessRaw": "無", "readiness": null, "action": "無", "notes": "目前想再買房但沒有目標，還有目前隔套的公寓將來也有都更可能。", "progressNote": "", "tagIds": ["t_wait"], "properties": []}, {"id": 85, "name": "石惠瑩", "currentCity": "新北市板橋區", "desiredCity": "新北市板橋區、中和區", "price": "1500萬", "downPayment": "300-500 萬", "decisionMaker": "自己", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "38", "age": 38, "job": "程式設計師", "income": "年收入100萬", "readinessRaw": "7分／10分", "readiness": 7.0, "action": "1.小基地透天（三重也可考慮）", "notes": "自住 4-5 個人，現有的會出租；房產經驗：二等親買賣（現在自用的房子，跟奶奶買）、全屋管線替換 + 改隔間（現在自用的房子）；可購買總價補充：3-4層樓的透天 (10坪/層，3層x10=30坪)；其他可登記/貸款的家人/夥伴：伴侶。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 86, "name": "白純瑜", "currentCity": "新北市新莊區", "desiredCity": "新北市三重區、新莊區、台北市中山區", "price": "1500萬", "downPayment": "50-100萬", "decisionMaker": "先生", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "53", "age": 53, "job": "軟體工程師", "income": "年收入100萬", "readinessRaw": "6", "readiness": 6.0, "action": "尋求資產挪移與增貸策略建議", "notes": "具備3次房產買賣經驗，包含收租華廈與合法隔套公寓。目前資金多鎖在房產中，現金流較少。預計2026年Q2有泰山預售屋交屋，由先生貸款。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 87, "name": "王雅慧", "currentCity": "台北市文山區", "desiredCity": "台北市大安、信義、中山、中正、內湖區", "price": "2800-3200萬", "downPayment": "1200萬以上 (股票財力另計)", "decisionMaker": "先生", "hasProperty": "無", "hasMortgage": "無", "ageRaw": "50", "age": 50, "job": "室內設計", "income": "年收入150-180萬", "readinessRaw": "9分/10分", "readiness": 9.0, "action": "文山區過給先生、新的薪轉搞定", "notes": "房產經驗：約五年內買一間自住，兩間短投（已出售），兩間合法格套（東湖70%+誌賢30%合資、北投獨資）。其他可登記/貸款的家人/夥伴：自己、朋友 廖小姐。廖小姐工作：彰銀；廖小姐的姊姊：金融業。廖小姐姐妹收入：各200萬。", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 88, "name": "王婕榆", "currentCity": "台北市南港區", "desiredCity": "台北市南港、中山、大同，新北市三重、中永和", "price": "1500-2000萬", "downPayment": "1200萬以上", "decisionMaker": "哥哥、大嫂、爸爸", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "34", "age": 34, "job": "中華電信工程師", "income": "年薪100萬", "readinessRaw": "5分/10分", "readiness": 5.0, "action": "確定買誰的名字，確認總價設定、區域", "notes": "買過自住房（目前出租）；有二房東共生公寓經驗（汐止樟樹一路）；家裡舊有房產參與過都更（永吉路、後山埤已售出，南港路一段整合中）；希望能購入有都更潛力的物件長期置產。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 89, "name": "李逢東", "currentCity": "新北市板橋區", "desiredCity": "台北市中正區、新北市板橋、三重", "price": "2000萬-2500萬", "downPayment": "700萬", "decisionMaker": "老婆", "hasProperty": "有", "hasMortgage": "有", "ageRaw": "60", "age": 60, "job": "農會", "income": "年收入180萬+150萬", "readinessRaw": "8分/10分", "readiness": 8.0, "action": "租金>本金+利息（找頂加物件or房間數）", "notes": "房產經驗豐富，曾買過三重一房一廳、新莊公寓合法格套、國立藝術大學附近隔套收租及一樓整層出租。目前名下有房產且有貸款。目前居住地為自有，登記在老婆名下。有合適物件比較重要。小姨子（54歲，高級護膚，年收110萬）亦可作為登記/貸款人。", "progressNote": "", "tagIds": [], "properties": []}, {"id": 90, "name": "黃宇祥", "currentCity": "", "desiredCity": "", "price": "", "downPayment": "", "decisionMaker": "", "hasProperty": "未填", "hasMortgage": "未填", "ageRaw": "", "age": null, "job": "", "income": "", "readinessRaw": "", "readiness": null, "action": "", "notes": "", "progressNote": "", "tagIds": ["t_priority"], "properties": []}, {"id": 91, "name": "李瑞雲", "currentCity": "", "desiredCity": "", "price": "", "downPayment": "", "decisionMaker": "", "hasProperty": "未填", "hasMortgage": "未填", "ageRaw": "", "age": null, "job": "", "income": "", "readinessRaw": "", "readiness": null, "action": "", "notes": "", "progressNote": "", "tagIds": ["t_priority"], "properties": []}];
+const REGIONS = ["台北","新北","桃園","新竹","台中","台南","高雄","基隆","宜蘭","花蓮","苗栗","彰化","屏東","南投"];
+const STAGES = ["評估中","整合中","送件審查","權利變換","申請建照","施工中","完工分回"];
+const SWATCH = ["#0E8A5F","#2C5FD6","#C77812","#7C3AED","#C0392B","#0E7C86","#DB2777","#64748B","#B45309","#0F766E"];
+const DEFAULT_TAGS = [
+  {id:"t_bought",name:"買到",color:"#0E8A5F"},
+  {id:"t_priority",name:"主力輔導",color:"#2C5FD6"},
+  {id:"t_wait",name:"待合資",color:"#C77812"}
+];
+
+const STUDENT_STATUS = [
+  {key:"ss_xuexi",label:"學習",color:"#EFA79E",grp:"r"},
+  {key:"ss_kanwu",label:"看屋",color:"#E4837A",grp:"r"},
+  {key:"ss_qy_r",label:"簽約",color:"#D6584B",grp:"r"},
+  {key:"ss_dk_r",label:"貸款",color:"#BE3E30",grp:"r"},
+  {key:"ss_jw_r",label:"交屋",color:"#9E2A1E",grp:"r"},
+  {key:"ss_zh",label:"裝潢",color:"#E4BC4E",grp:"y"},
+  {key:"ss_cz",label:"出租",color:"#C08A10",grp:"y"},
+  {key:"ss_mk",label:"陌開",color:"#8AD0A4",grp:"g"},
+  {key:"ss_smh",label:"說明會",color:"#74C295",grp:"g"},
+  {key:"ss_gjqy",label:"改建簽約",color:"#5FB587",grp:"g"},
+  {key:"ss_xw",label:"選屋",color:"#4CA678",grp:"g"},
+  {key:"ss_sj",label:"送件",color:"#3D9669",grp:"g"},
+  {key:"ss_hd",label:"核定",color:"#33885D",grp:"g"},
+  {key:"ss_cq",label:"拆遷",color:"#2B7952",grp:"g"},
+  {key:"ss_ys",label:"預售中",color:"#236A47",grp:"g"},
+  {key:"ss_xj",label:"興建",color:"#1C5B3C",grp:"g"},
+  {key:"ss_jw_g",label:"交屋",color:"#164D32",grp:"g"},
+  {key:"ss_cs",label:"出售",color:"#103E28",grp:"g"}
+];
+const PROP_STATUS = [
+  {key:"pp_qy",label:"簽約",color:"#D6584B",grp:"r"},
+  {key:"pp_dk",label:"貸款",color:"#BE3E30",grp:"r"},
+  {key:"pp_jw_r",label:"交屋",color:"#9E2A1E",grp:"r"},
+  {key:"pp_zh",label:"裝潢",color:"#E4BC4E",grp:"y"},
+  {key:"pp_cz",label:"出租",color:"#C08A10",grp:"y"},
+  {key:"pp_mk",label:"陌開",color:"#8AD0A4",grp:"g"},
+  {key:"pp_smh",label:"說明會",color:"#74C295",grp:"g"},
+  {key:"pp_gjqy",label:"改建簽約",color:"#5FB587",grp:"g"},
+  {key:"pp_xw",label:"選屋",color:"#4CA678",grp:"g"},
+  {key:"pp_sj",label:"送件",color:"#3D9669",grp:"g"},
+  {key:"pp_hd",label:"核定",color:"#33885D",grp:"g"},
+  {key:"pp_cq",label:"拆遷",color:"#2B7952",grp:"g"},
+  {key:"pp_ys",label:"預售中",color:"#236A47",grp:"g"},
+  {key:"pp_xj",label:"興建",color:"#1C5B3C",grp:"g"},
+  {key:"pp_jw_g",label:"交屋",color:"#164D32",grp:"g"},
+  {key:"pp_cs",label:"出售",color:"#103E28",grp:"g"}
+];
+
+let cohorts=[], activeCohort=null, students=[], tags=[];
+let view="list", sort={key:"name",dir:1};
+let filters={search:"",tag:"all",prop:"all",mort:"all",region:"all",ready:0,price:"all",down:"all",todo:false};
+let selectedId=null, renoRef=null, propEdit=null, newTagColor=SWATCH[0];
+let selected=new Set();
+
+/* ============================================================
+   設定：填入你的 Supabase 專案資訊（見「部署與資安指南」）
+   ============================================================ */
+const SUPABASE_URL = "https://qkvrwxmkfrdtfsevakzb.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_WkxRrnwb04FukAtH5wJbOw_wTKTaWnj";
+/* ============================================================ */
+
+let supa=null, currentUser=null, appStarted=false;
+
+/* auth */
+function authMsg(t,kind){ const el=document.getElementById("authMsg"); if(!t){el.style.display="none";return;} el.style.display="block"; el.className="authmsg "+(kind||"err"); el.textContent=t; }
+function showLogin(){ document.getElementById("authGate").classList.remove("hide"); if(SUPABASE_URL.indexOf("YOUR-PROJECT")>=0) authMsg("尚未設定 Supabase 連線資訊，請依指南填入 SUPABASE_URL 與 SUPABASE_ANON_KEY"); }
+async function doSignIn(){
+  const email=document.getElementById("authEmail").value.trim(), pw=document.getElementById("authPw").value;
+  if(!email||!pw){ authMsg("請輸入 Email 與密碼"); return; }
+  authMsg("登入中…","ok");
+  const {data,error}=await supa.auth.signInWithPassword({email,password:pw});
+  if(error){ authMsg("登入失敗："+error.message); return; }
+  currentUser=data.user; authMsg(""); await startApp();
+}
+async function doReset(){
+  const email=document.getElementById("authEmail").value.trim(); if(!email){ authMsg("請先輸入 Email"); return; }
+  const {error}=await supa.auth.resetPasswordForEmail(email,{redirectTo:location.href});
+  authMsg(error?("寄送失敗："+error.message):"重設連結已寄出，請至信箱點擊後回來設定新密碼", error?"err":"ok");
+}
+async function doSignOut(){ try{ await supa.auth.signOut(); }catch(e){} location.reload(); }
+
+/* storage — Supabase app_state table (team-shared, realtime) */
+async function sGet(k){ const {data,error}=await supa.from("app_state").select("value").eq("key",k).maybeSingle(); if(error){ console.error(error); return null; } return data?data.value:null; }
+async function sSet(k,v){ const {error}=await supa.from("app_state").upsert({key:k,value:v,updated_at:new Date().toISOString()}); if(error){ console.error(error); toast("儲存失敗，請檢查連線"); } }
+async function loadStudents(cid){ const raw=await sGet("students:"+cid); return raw?migrate(JSON.parse(raw)):[]; }
+
+/* realtime */
+let rtChannel=null, refreshPending=false, refreshTimer=null;
+function subscribeRealtime(){
+  if(rtChannel) return;
+  rtChannel=supa.channel("app_state_rt").on("postgres_changes",{event:"*",schema:"public",table:"app_state"},()=>scheduleRefresh()).subscribe();
+}
+function scheduleRefresh(){ clearTimeout(refreshTimer); refreshTimer=setTimeout(remoteRefresh,400); }
+async function remoteRefresh(){
+  const busy=document.getElementById("drawer").classList.contains("show")||document.querySelector(".modal.show");
+  if(busy){ refreshPending=true; return; }
+  const rawT=await sGet("tags"); if(rawT) tags=JSON.parse(rawT);
+  const rawC=await sGet("cohorts"); if(rawC){ cohorts=JSON.parse(rawC); if(!cohorts.find(c=>c.id===activeCohort)&&cohorts[0]) activeCohort=cohorts[0].id; }
+  students=await loadStudents(activeCohort);
+  buildFlagChips(); renderCohorts(); render();
+}
+async function saveStudents(){ await sSet("students:"+activeCohort, JSON.stringify(students)); }
+async function saveCohorts(){ await sSet("cohorts",JSON.stringify(cohorts)); await sSet("activeCohort",activeCohort); }
+async function saveTags(){ await sSet("tags",JSON.stringify(tags)); }
+
+function migrate(list){
+  return list.map(s=>{
+    if(!Array.isArray(s.tagIds)){
+      const t=[]; const f=s.flags||{};
+      if(f["買到"])t.push("t_bought"); if(f["主力輔導"])t.push("t_priority"); if(f["待合資"])t.push("t_wait");
+      s.tagIds=t;
+    }
+    if(!Array.isArray(s.properties)) s.properties=[];
+    if(s.phone===undefined)s.phone=""; if(s.lineId===undefined)s.lineId=""; if(s.email===undefined)s.email="";
+    if(s.courseRecord===undefined)s.courseRecord=""; if(s.status===undefined)s.status="";
+    if(s.hasProperty==="沒有")s.hasProperty="無";
+    if(s.hasProperty==="未填")s.hasProperty=""; if(s.hasMortgage==="未填")s.hasMortgage="";
+    if(s.privateCircle===undefined)s.privateCircle="";
+    if(s.englishName===undefined)s.englishName="";
+    if(!Array.isArray(s.consultations))s.consultations=[];
+    if(!Array.isArray(s.todos))s.todos=[];
+    delete s.flags;
+    return s;
+  });
+}
+
+async function startApp(){
+  if(appStarted){ return; } appStarted=true;
+  document.getElementById("authGate").classList.add("hide");
+  document.getElementById("userEmail").textContent=currentUser?currentUser.email:"";
+  const st=document.getElementById("storeStatus");
+  st.textContent="☁ 已連線雲端 · 團隊即時同步"; st.style.color="#0A6444";
+  document.getElementById("storeWarn").style.display="none";
+  const rawT=await sGet("tags");
+  tags = rawT?JSON.parse(rawT):JSON.parse(JSON.stringify(DEFAULT_TAGS));
+  if(!rawT) await saveTags();
+  const rawC=await sGet("cohorts");
+  if(rawC){
+    cohorts=JSON.parse(rawC);
+    activeCohort=(await sGet("activeCohort"))||cohorts[0].id;
+    if(!cohorts.find(c=>c.id===activeCohort)) activeCohort=cohorts[0].id;
+  }else{
+    cohorts=[{id:"c1",name:"第一班"}]; activeCohort="c1";
+    await sSet("students:c1",JSON.stringify([])); await saveCohorts();
+  }
+  students=await loadStudents(activeCohort);
+  buildRegionOptions(); buildStageOptions(); renderCohorts(); buildFlagChips(); render();
+  subscribeRealtime();
+  setTimeout(()=>{ if(typeof fitTable==="function") fitTable(); },300);
+}
+async function boot(){
+  try{ supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
+  catch(e){ showLogin(); authMsg("Supabase 初始化失敗，請確認設定與網路"); return; }
+  supa.auth.onAuthStateChange(async (event,session)=>{
+    if(event==="PASSWORD_RECOVERY"){
+      const np=prompt("請輸入新密碼（至少 6 碼）"); if(np){ const {error}=await supa.auth.updateUser({password:np}); alert(error?("更新失敗："+error.message):"密碼已更新，請用新密碼登入"); }
+    }
+    if(session&&session.user&&!appStarted){ currentUser=session.user; startApp(); }
+  });
+  const {data:{session}}=await supa.auth.getSession();
+  if(session){ currentUser=session.user; await startApp(); } else { showLogin(); }
+}
+
+/* cohorts */
+function renderCohorts(){
+  const el=document.getElementById("cohorts"); el.innerHTML="";
+  cohorts.forEach(c=>{
+    const b=document.createElement("button");
+    b.className="ctab"+(c.id===activeCohort?" active":"");
+    b.onclick=()=>{ if(!b.dataset.dragged) switchCohort(c.id); };
+    b.innerHTML=esc(c.name)+' <span class="cnt" data-cnt="'+c.id+'"></span>';
+    b.draggable=true; b.dataset.cid=c.id;
+    b.addEventListener("dragstart",e=>{ dragCid=c.id; b.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",c.id);}catch(err){} });
+    b.addEventListener("dragend",()=>{ b.classList.remove("dragging"); document.querySelectorAll(".ctab").forEach(x=>x.classList.remove("dropzone")); setTimeout(()=>{delete b.dataset.dragged;},50); });
+    b.addEventListener("dragover",e=>{ e.preventDefault(); e.dataTransfer.dropEffect="move"; if(dragCid&&dragCid!==c.id) b.classList.add("dropzone"); });
+    b.addEventListener("dragleave",()=>b.classList.remove("dropzone"));
+    b.addEventListener("drop",async e=>{
+      e.preventDefault(); b.classList.remove("dropzone");
+      if(!dragCid||dragCid===c.id) return;
+      const from=cohorts.findIndex(x=>x.id===dragCid), to=cohorts.findIndex(x=>x.id===c.id);
+      if(from<0||to<0) return;
+      const [moved]=cohorts.splice(from,1); cohorts.splice(to,0,moved);
+      const src=document.querySelector('.ctab[data-cid="'+dragCid+'"]'); if(src) src.dataset.dragged="1";
+      dragCid=null;
+      await saveCohorts(); renderCohorts(); toast("已更新班級順序");
+    });
+    el.appendChild(b);
+  });
+  const add=document.createElement("button"); add.className="ctab-add"; add.title="新增班級"; add.textContent="＋"; add.onclick=openCohort;
+  el.appendChild(add); updateCohortCounts();
+}
+let dragCid=null;
+async function updateCohortCounts(){
+  for(const c of cohorts){
+    let n=c.id===activeCohort?students.length:(await loadStudents(c.id)).length;
+    const s=document.querySelector('[data-cnt="'+c.id+'"]'); if(s)s.textContent=n;
+  }
+}
+async function switchCohort(cid){
+  activeCohort=cid; students=await loadStudents(cid); await sSet("activeCohort",cid);
+  selectedId=null; selected=new Set(); closeDrawer(); renderCohorts(); render();
+}
+function openCohort(){document.getElementById("newCohortName").value="";document.getElementById("cohortModal").classList.add("show");setTimeout(()=>document.getElementById("newCohortName").focus(),50);}
+function closeCohort(){document.getElementById("cohortModal").classList.remove("show");}
+async function submitCohort(){
+  const name=document.getElementById("newCohortName").value.trim();
+  if(!name){toast("請輸入班級名稱");return;}
+  const id="c"+Date.now(); cohorts.push({id,name});
+  await sSet("students:"+id,JSON.stringify([])); activeCohort=id; students=[];
+  await saveCohorts(); closeCohort(); renderCohorts(); render(); toast("已建立「"+name+"」");
+}
+
+/* cohort manager (後台) */
+function openCohortMgr(){ renderCohortMgr(); document.getElementById("mgrNewCohort").value=""; document.getElementById("cohortMgrModal").classList.add("show"); }
+function closeCohortMgr(){ document.getElementById("cohortMgrModal").classList.remove("show"); renderCohorts(); render(); }
+async function cohortCount(cid){ return cid===activeCohort ? students.length : (await loadStudents(cid)).length; }
+async function renderCohortMgr(){
+  const el=document.getElementById("cohortMgrList"); el.innerHTML="";
+  for(let i=0;i<cohorts.length;i++){
+    const c=cohorts[i], n=await cohortCount(c.id);
+    const row=document.createElement("div"); row.className="tmrow";
+    row.innerHTML='<span class="sw" style="background:'+(c.id===activeCohort?"var(--brand)":"var(--line)")+'"></span>'+
+      '<input class="tname" value="'+esc(c.name)+'">'+
+      '<span class="used">'+n+' 位</span>'+
+      '<button class="btn sm ghost" '+(i===0?'disabled style="opacity:.35"':'')+' title="上移">↑</button>'+
+      '<button class="btn sm ghost" '+(i===cohorts.length-1?'disabled style="opacity:.35"':'')+' title="下移">↓</button>'+
+      '<button class="xdel" title="刪除班級">✕</button>';
+    const [up,down]=row.querySelectorAll(".btn.sm");
+    row.querySelector(".tname").onchange=async e=>{ const v=e.target.value.trim(); if(v){ c.name=v; await saveCohorts(); renderCohorts(); toast("已更新班級名稱"); } };
+    up.onclick=()=>moveCohort(i,-1); down.onclick=()=>moveCohort(i,1);
+    row.querySelector(".xdel").onclick=()=>deleteCohort(c.id);
+    el.appendChild(row);
+  }
+}
+async function moveCohort(i,dir){
+  const j=i+dir; if(j<0||j>=cohorts.length) return;
+  const [m]=cohorts.splice(i,1); cohorts.splice(j,0,m);
+  await saveCohorts(); renderCohortMgr(); renderCohorts(); toast("已更新班級順序");
+}
+async function addCohortFromMgr(){
+  const name=document.getElementById("mgrNewCohort").value.trim();
+  if(!name){ toast("請輸入班級名稱"); return; }
+  const id="c"+Date.now(); cohorts.push({id,name});
+  await sSet("students:"+id,JSON.stringify([])); await saveCohorts();
+  document.getElementById("mgrNewCohort").value="";
+  renderCohortMgr(); renderCohorts(); toast("已建立「"+name+"」");
+}
+async function deleteCohort(cid){
+  if(cohorts.length<=1){ toast("至少要保留一個班級"); return; }
+  const c=cohorts.find(x=>x.id===cid); if(!c) return;
+  const n=await cohortCount(cid);
+  if(n>0){
+    const typed=prompt('「'+c.name+'」內有 '+n+' 位學員，刪除後將一併永久移除（含物件與進度）。\n\n確定要刪除，請輸入班級名稱：'+c.name);
+    if(typed===null) return;
+    if(typed.trim()!==c.name){ toast("名稱不符，已取消刪除"); return; }
+  } else {
+    if(!confirm('確定刪除空班級「'+c.name+'」？')) return;
+  }
+  cohorts=cohorts.filter(x=>x.id!==cid);
+  await sSet("students:"+cid, JSON.stringify([]));
+  if(activeCohort===cid){ activeCohort=cohorts[0].id; students=await loadStudents(activeCohort); selected=new Set(); }
+  await saveCohorts();
+  renderCohortMgr(); renderCohorts(); render(); toast("已刪除班級「"+c.name+"」");
+}
+
+/* tags */
+function tagById(id){ return tags.find(t=>t.id===id); }
+function pillStyle(color){ return 'background:'+color+'1A;color:'+color+';border-color:'+color+'44'; }
+function studentTags(s){ return (s.tagIds||[]).map(tagById).filter(Boolean); }
+function buildFlagChips(){
+  const el=document.getElementById("flagChips"); el.innerHTML="";
+  const mk=(v,l)=>{const b=document.createElement("button");b.className="chip"+(filters.tag===v?" on":"");b.textContent=l;b.onclick=()=>{filters.tag=v;buildFlagChips();applyFilters();};return b;};
+  el.appendChild(mk("all","全部"));
+  tags.forEach(t=>el.appendChild(mk(t.id,t.name)));
+  el.appendChild(mk("none","未分類"));
+}
+function openTagMgr(){ renderTagList(); renderSwatches(); document.getElementById("newTagName").value=""; document.getElementById("tagModal").classList.add("show"); }
+function closeTagMgr(){ document.getElementById("tagModal").classList.remove("show"); buildFlagChips(); render(); }
+function tagUsage(id){ return students.filter(s=>(s.tagIds||[]).includes(id)).length; }
+function renderTagList(){
+  const el=document.getElementById("tagList"); el.innerHTML="";
+  tags.forEach(t=>{
+    const row=document.createElement("div"); row.className="tmrow";
+    row.innerHTML='<span class="sw" style="background:'+t.color+'"></span>'+
+      '<input class="tname" value="'+esc(t.name)+'" data-id="'+t.id+'">'+
+      '<span class="used">'+tagUsage(t.id)+' 位</span>'+
+      '<button class="xdel" title="刪除">✕</button>';
+    row.querySelector(".tname").onchange=async e=>{ t.name=e.target.value.trim()||t.name; await saveTags(); toast("已更新標籤"); };
+    row.querySelector(".xdel").onclick=()=>delTag(t.id);
+    el.appendChild(row);
+  });
+}
+function renderSwatches(){
+  const el=document.getElementById("tagSwatches"); el.innerHTML="";
+  SWATCH.forEach(c=>{const b=document.createElement("button");b.style.background=c;b.className=(c===newTagColor?"on":"");b.onclick=()=>{newTagColor=c;renderSwatches();};el.appendChild(b);});
+}
+async function addTag(){
+  const name=document.getElementById("newTagName").value.trim();
+  if(!name){toast("請輸入標籤名稱");return;}
+  tags.push({id:"tag_"+Date.now(),name,color:newTagColor});
+  await saveTags(); document.getElementById("newTagName").value=""; renderTagList(); buildFlagChips(); toast("已建立標籤「"+name+"」");
+}
+async function delTag(id){
+  const t=tagById(id); if(!t)return;
+  if(!confirm('刪除標籤「'+t.name+'」？會從所有學員身上移除此標籤。')) return;
+  tags=tags.filter(x=>x.id!==id);
+  // remove from current cohort in memory + persist; other cohorts cleaned when opened
+  students.forEach(s=>{ s.tagIds=(s.tagIds||[]).filter(x=>x!==id); });
+  await saveTags(); await saveStudents();
+  // clean other cohorts
+  for(const c of cohorts){ if(c.id===activeCohort)continue; const list=await loadStudents(c.id); let ch=false; list.forEach(s=>{const b4=(s.tagIds||[]).length;s.tagIds=(s.tagIds||[]).filter(x=>x!==id);if((s.tagIds||[]).length!==b4)ch=true;}); if(ch) await sSet("students:"+c.id,JSON.stringify(list)); }
+  renderTagList(); buildFlagChips(); render(); toast("已刪除標籤");
+}
+
+/* filters */
+function buildRegionOptions(){document.getElementById("fRegion").innerHTML='<option value="all">全部</option>'+REGIONS.map(r=>'<option value="'+r+'">'+r+'</option>').join("");}
+function buildStageOptions(){const seen=new Set();const opts=PROP_STATUS.filter(o=>{if(seen.has(o.label))return false;seen.add(o.label);return true;}).map(o=>'<option value="'+o.label+'">'+o.label+'</option>').join("");document.getElementById("fStage").innerHTML='<option value="all">全部狀態</option>'+opts;}
+function regionOf(str){return REGIONS.filter(r=>(str||"").includes(r)||(r==="台北"&&(str||"").includes("臺北")));}
+function resetFilters(){
+  filters={search:"",tag:"all",prop:"all",mort:"all",region:"all",ready:0,price:"all",down:"all"};
+  document.getElementById("fSearch").value=""; document.getElementById("fProp").value="all";
+  document.getElementById("fMort").value="all"; document.getElementById("fRegion").value="all";
+  document.getElementById("fPrice").value="all"; document.getElementById("fDown").value="all";
+  document.getElementById("fReady").value=0; document.getElementById("readyVal").textContent="0";
+  buildFlagChips(); render();
+}
+function applyFilters(){
+  filters.search=document.getElementById("fSearch").value.trim();
+  filters.prop=document.getElementById("fProp").value; filters.mort=document.getElementById("fMort").value;
+  filters.region=document.getElementById("fRegion").value; filters.ready=+document.getElementById("fReady").value;
+  filters.price=document.getElementById("fPrice").value; filters.down=document.getElementById("fDown").value;
+  document.getElementById("readyVal").textContent=filters.ready; render();
+}
+function filtered(){
+  const q=filters.search.toLowerCase();
+  return students.filter(s=>{
+    if(q){ const addrs=(s.properties||[]).map(p=>p.address).join(" ");
+      const hay=[s.name,s.englishName,s.privateCircle,s.currentCity,s.desiredCity,s.job,s.notes,s.action,s.income,addrs].join(" ").toLowerCase();
+      if(!hay.includes(q))return false; }
+    if(filters.tag!=="all"){ const ids=s.tagIds||[];
+      if(filters.tag==="none"){ if(ids.length>0)return false; }
+      else if(!ids.includes(filters.tag))return false; }
+    if(filters.prop!=="all"&&s.hasProperty!==filters.prop)return false;
+    if(filters.mort!=="all"&&s.hasMortgage!==filters.mort)return false;
+    if(filters.region!=="all"&&!regionOf(s.desiredCity).includes(filters.region))return false;
+    if(filters.price!=="all"&&priceBucket(s.price)!==filters.price)return false;
+    if(filters.down!=="all"&&downPaymentBucket(s.downPayment)!==filters.down)return false;
+    if(filters.ready>0&&(s.readiness==null||s.readiness<filters.ready))return false;
+    return true;
+  });
+}
+function sorted(list){const{key,dir}=sort;return[...list].sort((a,b)=>{let x=a[key],y=b[key];if(key==="name")return dir*(''+x).localeCompare((''+y),"zh-Hant");x=x==null?-Infinity:x;y=y==null?-Infinity:y;return dir*(x-y);});}
+function setSort(key){if(sort.key===key)sort.dir*=-1;else{sort.key=key;sort.dir=1;}render();}
+
+/* view */
+function setView(v){
+  view=v;
+  document.body.classList.remove("scrolled");
+  document.getElementById("vList").classList.toggle("on",v==="list");
+  document.getElementById("vReno").classList.toggle("on",v==="reno");
+  document.getElementById("vStats").classList.toggle("on",v==="stats");
+  const bt=document.getElementById("btnTodo"); if(bt) bt.classList.toggle("primary",v==="todo");
+  document.getElementById("listView").style.display=v==="list"?"block":"none";
+  document.getElementById("renoView").style.display=v==="reno"?"block":"none";
+  document.getElementById("statsView").style.display=v==="stats"?"block":"none";
+  document.getElementById("todoView").style.display=v==="todo"?"block":"none";
+  render();
+}
+function render(){ if(view==="list")renderTable(); else if(view==="reno")renderReno(); else if(view==="stats")renderStats(); else if(view==="todo")renderTodoView(); updateCohortCounts(); }
+
+function readyColor(r){if(r==null)return"var(--line)";if(r>=8)return"#0E8A5F";if(r>=5)return"#C77812";return"#D06452";}
+function tagPill(t){return '<span class="tag" style="'+pillStyle(t.color)+'">'+esc(t.name)+'</span>';}
+
+const PROP_OPTIONS=["只有繼承的房子","有","無"];
+const MORT_OPTIONS=["科目01 購屋貸款","科目04 週轉金","科目01+04 都有","無"];
+function optSelect(id,opts,cur){
+  const has=opts.indexOf(cur)>=0;
+  let html='<select class="din" id="'+id+'"><option value=""'+((!cur)?' selected':'')+'>未設定</option>';
+  if(cur&&!has) html+='<option value="'+esc(cur)+'" selected>'+esc(cur)+'（原值）</option>';
+  html+=opts.map(o=>'<option'+(o===cur?' selected':'')+'>'+o+'</option>').join('');
+  return html+'</select>';
+}
+function shortProp(v){if(!v||v==="未填")return "";return ({"只有繼承的房子":"繼承","有":"有","無":"無","沒有":"無"}[v])||v;}
+function shortMort(v){if(!v||v==="未填")return "";return ({"科目01 購屋貸款":"01","科目04 週轉金":"04","科目01+04 都有":"01+04","無":"無"}[v])||v;}
+function ssById(k){return STUDENT_STATUS.find(x=>x.key===k);}
+function psById(k){return PROP_STATUS.find(x=>x.key===k);}
+function hexLum(h){h=(h||"#888").replace("#","");const r=parseInt(h.substr(0,2),16),g=parseInt(h.substr(2,2),16),b=parseInt(h.substr(4,2),16);return (0.299*r+0.587*g+0.114*b)/255;}
+function textOn(h){return hexLum(h)>0.62?"#16232E":"#ffffff";}
+function statusFill(c){return "background:"+c+";color:"+textOn(c)+";border:1px solid "+c;}
+function statusPill(o){return o?'<span class="tag" style="'+statusFill(o.color)+'">'+esc(o.label)+'</span>':'';}
+function pnum(v){const n=parseFloat((''+(v==null?'':v)).replace(/[, ]/g,''));return isNaN(n)?0:n;}
+function studentStatusSelect(id,cur){
+  const grp=(n,a)=>'<optgroup label="'+n+'">'+a.map(o=>'<option value="'+o.key+'"'+(o.key===cur?' selected':'')+'>'+o.label+'</option>').join('')+'</optgroup>';
+  const r=STUDENT_STATUS.filter(o=>o.grp==='r'),y=STUDENT_STATUS.filter(o=>o.grp==='y'),g=STUDENT_STATUS.filter(o=>o.grp==='g');
+  return '<select class="din" id="'+id+'"><option value="">未設定</option>'+grp('紅 · 學習～交屋',r)+grp('黃 · 裝潢/出租',y)+grp('綠 · 陌開～出售',g)+'</select>';
+}
+function propStatusSelect(id,cur){
+  const grp=(n,a)=>'<optgroup label="'+n+'">'+a.map(o=>'<option value="'+o.key+'"'+(o.key===cur?' selected':'')+'>'+o.label+'</option>').join('')+'</optgroup>';
+  const r=PROP_STATUS.filter(o=>o.grp==='r'),y=PROP_STATUS.filter(o=>o.grp==='y'),g=PROP_STATUS.filter(o=>o.grp==='g');
+  return '<select class="din" id="'+id+'"><option value="">未設定</option>'+grp('紅 · 簽約/貸款/交屋',r)+grp('黃 · 裝潢/出租',y)+grp('綠 · 陌開～出售',g)+'</select>';
+}
+function renderPropCell(s){
+  const ps=(s.properties||[]);
+  if(!ps.length) return '<span style="color:var(--muted)">—</span>';
+  return ps.map(p=>{const o=psById(p.status);
+    const st=o?'<span class="tag" style="'+statusFill(o.color)+';padding:1px 6px;font-size:10.5px">'+esc(o.label)+'</span>':'';
+    const hd=p.handoverDate?'<span style="color:var(--muted)"> · '+esc(p.handoverDate)+'</span>':'';
+    return '<div class="propchip" title="前往物件改建專區" onclick="event.stopPropagation();gotoReno(\''+s.id+'\',\''+p.id+'\')"><span class="pa">'+esc(p.address||'未填地址')+'</span>'+hd+' '+st+'</div>';
+  }).join('');
+}
+async function setPrivate(ev,sid){ ev.stopPropagation(); const s=students.find(x=>x.id===sid); if(!s)return; s.privateCircle=ev.target.value; await saveStudents(); }
+async function setEnglish(ev,sid){ ev.stopPropagation(); const s=students.find(x=>x.id===sid); if(!s)return; s.englishName=ev.target.value; await saveStudents(); }
+let statusPopSid=null;
+function openStatusPop(ev,sid){
+  ev.stopPropagation();
+  const s=students.find(x=>x.id===sid); if(!s) return; statusPopSid=sid;
+  const cur=s.status||"";
+  const pop=document.getElementById("tagPop");
+  const item=o=>'<div class="ti'+(o.key===cur?" cur":"")+'" onclick="setStatusSingle(\''+o.key+'\')"><span class="dot" style="background:'+o.color+'"></span>'+esc(o.label)+(o.key===cur?' ✓':'')+'</div>';
+  pop.innerHTML=STUDENT_STATUS.map(item).join("")+'<div class="sep"></div><div class="ti'+(cur?"":" cur")+'" onclick="setStatusSingle(\'\')"><span class="dot" style="background:#C4CDD5"></span>清除狀態</div>';
+  pop.style.maxHeight="none"; pop.classList.add("show");
+  positionPop(pop, ev.currentTarget);
+}
+function positionPop(pop, anchorEl){
+  const r=anchorEl.getBoundingClientRect();
+  const pw=pop.offsetWidth||190;
+  const need=pop.scrollHeight;
+  const gap=8, margin=10;
+  const below=window.innerHeight-r.bottom-margin;
+  const above=r.top-margin;
+  let top, maxH;
+  if(below>=need || below>=above){ top=r.bottom+gap; maxH=below-gap; }
+  else { maxH=above-gap; top=r.top-gap-Math.min(need,maxH); }
+  maxH=Math.max(200,Math.min(maxH, window.innerHeight-2*margin));
+  pop.style.maxHeight=maxH+"px"; pop.style.overflowY="auto";
+  let left=r.left; if(left+pw>window.innerWidth-margin) left=window.innerWidth-pw-margin;
+  pop.style.left=Math.max(margin,left)+"px"; pop.style.top=Math.max(margin,top)+"px";
+}
+async function setStatusSingle(key){
+  const s=students.find(x=>x.id===statusPopSid); if(!s){ closeTagPop(); return; }
+  s.status=key||""; closeTagPop(); await saveStudents(); render();
+  const o=ssById(key); toast(key?(s.name+" → "+(o?o.label:"")):(s.name+" 已清除狀態"));
+}
+function collectDrawerFields(s){
+  const ids=[]; document.querySelectorAll("#drawerTags .flagbtn").forEach(b=>{ if(b.classList.contains("active")) ids.push(b.dataset.tag); });
+  s.tagIds=ids;
+  const g=id=>{const e=document.getElementById(id);return e?e.value:undefined;};
+  const set=(id,k)=>{const v=g(id); if(v!==undefined)s[k]=v;};
+  set("dProgress","progressNote"); set("dPhone","phone"); set("dLine","lineId"); set("dEmail","email"); set("dCourse","courseRecord"); set("dStatus","status"); set("dHasProp","hasProperty"); set("dHasMort","hasMortgage"); set("dPrivate","privateCircle"); set("dEnglish","englishName");
+  set("dDesired","desiredCity"); set("dPrice","price"); set("dDown","downPayment"); set("dDecision","decisionMaker");
+  set("dCurrent","currentCity"); set("dIncome","income"); set("dAction","action"); set("dNotes","notes");
+  const nm=g("dName2"); if(nm!==undefined&&nm.trim()) s.name=nm.trim();
+  const rv=g("dReadiness"); if(rv!==undefined){ s.readinessRaw=rv; s.readiness=parseNum(rv); }
+}
+async function addConsult(){
+  const s=students.find(x=>x.id===selectedId); if(!s)return;
+  const content=document.getElementById("cContent").value.trim();
+  if(!content){ toast("請輸入諮詢內容"); return; }
+  collectDrawerFields(s);
+  s.consultations=s.consultations||[];
+  s.consultations.push({id:"k"+Date.now(),date:document.getElementById("cDate").value,form:document.getElementById("cForm").value,formOther:document.getElementById("cOther").value.trim(),content});
+  await saveStudents(); openDrawer(s.id); toast("已新增諮詢紀錄");
+}
+function renderTable(){
+  const list=sorted(filtered());
+  document.getElementById("resultLine").innerHTML="顯示 <b>"+list.length+"</b> / "+students.length+" 位學員";
+  document.querySelectorAll("thead th.sortable").forEach(th=>{const on=th.dataset.sort===sort.key;th.classList.toggle("sorted",on);const a=th.querySelector(".arw");if(a)a.textContent=on?(sort.dir>0?"↑":"↓"):"↕";});
+  const tb=document.getElementById("tbody"); document.getElementById("emptyState").style.display=list.length?"none":"block"; tb.innerHTML="";
+  list.forEach(s=>{
+    const tg=studentTags(s); const tags_html=tg.length?tg.map(tagPill).join(""):'<span class="tag" style="'+pillStyle("#8A97A3")+'">未分類</span>';
+    const r=s.readiness;
+    const readyCell=r==null?'<span style="color:var(--muted)">—</span>':'<span class="ready"><span class="readbar"><i style="width:'+(r*10)+'%;background:'+readyColor(r)+'"></i></span>'+r+'</span>';
+    const np=(s.properties||[]).length;
+    const propCell=np?'<span class="stagepill">'+np+' 件</span>':'<span style="color:var(--muted)">—</span>';
+    const pin=np?'<span class="pin">●</span>':'';
+    const so=ssById(s.status); const statusCell=so?statusPill(so):'<span style="color:var(--muted)">—</span>';
+    const tr=document.createElement("tr"); tr.onclick=()=>openDrawer(s.id);
+    const checked=selected.has(s.id)?" checked":"";
+    tr.innerHTML='<td class="selcol" onclick="event.stopPropagation()"><input type="checkbox" class="rowcheck"'+checked+' onclick="toggleSelect(event,'+s.id+')"></td>'+
+      '<td><div class="name">'+esc(s.name)+pin+(((s.todos||[]).filter(t=>!t.done).length)?'<span class="todobadge" title="待辦">'+(s.todos||[]).filter(t=>!t.done).length+'</span>':'')+'</div></td>'+
+      '<td onclick="event.stopPropagation()"><input class="pcin" value="'+esc(s.englishName||"")+'" placeholder="—" onchange="setEnglish(event,'+s.id+')"></td>'+
+      '<td onclick="event.stopPropagation()"><input class="pcin" value="'+esc(s.privateCircle||"")+'" placeholder="—" onchange="setPrivate(event,'+s.id+')"></td>'+
+      '<td onclick="event.stopPropagation();openTagPop(event,'+s.id+')"><span class="tagcell" title="點擊變更">'+tags_html+'</span></td>'+
+      '<td onclick="event.stopPropagation();openStatusPop(event,'+s.id+')"><span class="tagcell" title="點擊變更狀態">'+statusCell+'</span></td>'+
+      '<td class="cell-hide"><div class="cell-wrap" title="'+esc(s.currentCity)+'">'+esc(s.currentCity||"—")+'</div></td>'+
+      '<td><div class="cell-wrap" title="'+esc(s.desiredCity)+'">'+esc(s.desiredCity||"—")+'</div></td>'+
+      '<td class="cell-hide"><div class="price-wrap">'+esc(s.price||"—")+'</div></td>'+
+      '<td><span class="yn '+(["有","只有繼承的房子"].includes(s.hasProperty)?"y":((s.hasProperty==="無"||s.hasProperty==="沒有")?"n":""))+'">'+shortProp(s.hasProperty)+'</span></td>'+
+      '<td class="cell-hide"><span class="yn '+((s.hasMortgage&&s.hasMortgage!=="無"&&s.hasMortgage!=="未填")?"y":(s.hasMortgage==="無"?"n":""))+'">'+shortMort(s.hasMortgage)+'</span></td>'+
+      '<td>'+readyCell+'</td>'+
+      '<td class="cell-hide">'+renderPropCell(s)+'</td>';
+    tb.appendChild(tr);
+  });
+  refreshSelectionUI(list);
+  fitTable();
+}
+function scrollListTop(){
+  const card=document.querySelector("#listView .tablecard");
+  if(card) card.scrollTo({top:0,behavior:"smooth"});
+  document.body.classList.remove("scrolled");
+  fitTable();
+}
+function fitTable(){
+  const card=document.querySelector("#listView .tablecard");
+  if(!card||document.getElementById("listView").style.display==="none") return;
+  const top=card.getBoundingClientRect().top;
+  const h=window.innerHeight-top-24;
+  card.style.maxHeight=Math.max(240,h)+"px";
+  bindListScroll();
+}
+function bindListScroll(){
+  const card=document.querySelector("#listView .tablecard");
+  if(!card||card.dataset.bound) return;
+  card.dataset.bound="1";
+  let lock=false;
+  card.addEventListener("scroll",()=>{
+    if(lock) return;
+    const st=card.scrollTop, on=document.body.classList.contains("scrolled");
+    if(st>80 && !on){ document.body.classList.add("scrolled"); lock=true; fitTable(); setTimeout(()=>{lock=false;},300); }
+    else if(st<10 && on){ document.body.classList.remove("scrolled"); lock=true; fitTable(); setTimeout(()=>{lock=false;},300); }
+  });
+}
+
+/* inline tag picker (single-select) */
+let tagPopSid=null;
+function openTagPop(ev,sid){
+  ev.stopPropagation();
+  const s=students.find(x=>x.id===sid); if(!s) return;
+  tagPopSid=sid;
+  const cur=(s.tagIds||[])[0]||"";
+  const pop=document.getElementById("tagPop");
+  pop.innerHTML=tags.map(t=>'<div class="ti'+(t.id===cur?" cur":"")+'" onclick="setTagSingle(\''+t.id+'\')"><span class="dot" style="background:'+t.color+'"></span>'+esc(t.name)+(t.id===cur?' ✓':'')+'</div>').join("")+
+    '<div class="sep"></div><div class="ti'+(cur?"":" cur")+'" onclick="setTagSingle(\'\')"><span class="dot" style="background:#C4CDD5"></span>未分類</div>';
+  pop.style.maxHeight="none"; pop.classList.add("show");
+  positionPop(pop, ev.currentTarget);
+}
+function closeTagPop(){ document.getElementById("tagPop").classList.remove("show"); tagPopSid=null; }
+async function setTagSingle(tagId){
+  const s=students.find(x=>x.id===tagPopSid); if(!s){ closeTagPop(); return; }
+  s.tagIds = tagId ? [tagId] : [];
+  const t=tagById(tagId);
+  closeTagPop();
+  await saveStudents(); render();
+  toast(tagId ? (s.name+" → "+(t?t.name:"")) : (s.name+" 已清除標籤"));
+}
+document.addEventListener("click",()=>closeTagPop());
+window.addEventListener("scroll",()=>closeTagPop(),true);
+
+/* bulk selection */
+function toggleSelect(ev,id){ ev.stopPropagation(); if(selected.has(id))selected.delete(id); else selected.add(id); refreshSelectionUI(); }
+function toggleSelectAll(cb){
+  const ids=sorted(filtered()).map(s=>s.id);
+  if(cb.checked) ids.forEach(i=>selected.add(i)); else ids.forEach(i=>selected.delete(i));
+  renderTable();
+}
+function clearSelection(){ selected=new Set(); renderTable(); }
+function refreshSelectionUI(list){
+  list = list || sorted(filtered());
+  const ids=list.map(s=>s.id); const selCount=ids.filter(i=>selected.has(i)).length;
+  const selAll=document.getElementById("selAll");
+  if(selAll){ selAll.checked=selCount>0&&selCount===ids.length; selAll.indeterminate=selCount>0&&selCount<ids.length; }
+  // sync row checkboxes (in case programmatic change)
+  document.querySelectorAll("#tbody .rowcheck").forEach((cb,idx)=>{ const s=list[idx]; if(s) cb.checked=selected.has(s.id); });
+  renderBulkBar();
+}
+function renderBulkBar(){
+  const bar=document.getElementById("bulkBar");
+  const n=selected.size;
+  if(!n){ bar.style.display="none"; bar.innerHTML=""; return; }
+  const addBtns=tags.map(t=>'<button class="btag" onclick="bulkAddTag(\''+t.id+'\')"><span class="dot" style="background:'+t.color+'"></span>'+esc(t.name)+'</button>').join("");
+  const rmBtns=tags.map(t=>'<button class="btag rm" onclick="bulkRemoveTag(\''+t.id+'\')">'+esc(t.name)+'</button>').join("");
+  bar.style.display="flex";
+  bar.innerHTML='<span class="bcount">已選 '+n+' 位</span><span class="sep"></span>'+
+    '<span class="blabel">加上標籤</span><span class="bgrp">'+addBtns+'</span><span class="sep"></span>'+
+    '<span class="blabel">移除標籤</span><span class="bgrp">'+rmBtns+'</span>'+
+    '<span class="sep"></span><button class="btag" onclick="bulkAddTodo()">＋ 新增待辦</button>'+
+    '<button class="bclear" onclick="clearSelection()">清除選取</button>';
+}
+async function bulkAddTag(tagId){
+  const t=tagById(tagId); let cnt=0;
+  students.forEach(s=>{ if(selected.has(s.id)){ s.tagIds=s.tagIds||[]; if(!s.tagIds.includes(tagId)){s.tagIds.push(tagId);cnt++;} } });
+  await saveStudents(); renderTable();
+  toast("已為 "+cnt+" 位加上「"+(t?t.name:"")+"」");
+}
+async function bulkRemoveTag(tagId){
+  const t=tagById(tagId); let cnt=0;
+  students.forEach(s=>{ if(selected.has(s.id)&&(s.tagIds||[]).includes(tagId)){ s.tagIds=s.tagIds.filter(x=>x!==tagId); cnt++; } });
+  await saveStudents(); renderTable();
+  toast("已從 "+cnt+" 位移除「"+(t?t.name:"")+"」");
+}
+
+const TODO_QUICK=["關心進度"];
+function bulkAddTodo(){
+  if(!selected.size) return;
+  document.getElementById("bulkTodoCount").textContent="將加入給已選 "+selected.size+" 位學員";
+  document.getElementById("bulkTodoText").value="";
+  document.getElementById("bulkTodoQuick").innerHTML=TODO_QUICK.map(q=>'<button class="btag qk" onclick="submitBulkTodo(\''+q+'\')">快捷：'+esc(q)+'</button>').join("");
+  document.getElementById("bulkTodoModal").classList.add("show");
+  setTimeout(()=>document.getElementById("bulkTodoText").focus(),50);
+}
+function closeBulkTodo(){ document.getElementById("bulkTodoModal").classList.remove("show"); }
+async function submitBulkTodo(preset){
+  const text=(preset!==undefined?preset:document.getElementById("bulkTodoText").value).trim();
+  if(!text){ toast("請輸入待辦內容"); return; }
+  let cnt=0, base=Date.now();
+  students.forEach(s=>{ if(selected.has(s.id)){ s.todos=s.todos||[]; s.todos.push({id:"td"+(base++)+"_"+s.id,text:text,done:false,date:new Date().toISOString().slice(0,10)}); cnt++; } });
+  await saveStudents(); closeBulkTodo(); renderTable(); toast("已為 "+cnt+" 位新增待辦");
+}
+function todoListHtml(s){
+  const a=s.todos||[];
+  if(!a.length) return '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">尚無待辦</div>';
+  return a.map(t=>'<div class="todoitem'+(t.done?" done":"")+'"><label><input type="checkbox" '+(t.done?"checked":"")+' onchange="toggleTodo(\''+t.id+'\')"><span>'+esc(t.text)+'</span></label><button class="tdel" title="刪除" onclick="deleteTodo(\''+t.id+'\')">\u2715</button></div>').join("");
+}
+async function addTodo(){
+  const s=students.find(x=>x.id===selectedId); if(!s)return;
+  const inp=document.getElementById("dTodoNew"); const v=inp.value.trim(); if(!v){toast("請輸入待辦內容");return;}
+  collectDrawerFields(s); s.todos=s.todos||[];
+  s.todos.push({id:"td"+Date.now(),text:v,done:false,date:new Date().toISOString().slice(0,10)});
+  await saveStudents(); openDrawer(s.id); toast("已新增待辦");
+}
+async function toggleTodo(tid){
+  const s=students.find(x=>x.id===selectedId); if(!s)return;
+  const t=(s.todos||[]).find(x=>x.id===tid); if(!t)return; t.done=!t.done;
+  collectDrawerFields(s); await saveStudents(); openDrawer(s.id);
+}
+async function deleteTodo(tid){
+  const s=students.find(x=>x.id===selectedId); if(!s)return;
+  s.todos=(s.todos||[]).filter(x=>x.id!==tid);
+  collectDrawerFields(s); await saveStudents(); openDrawer(s.id);
+}
+async function todoMutate(cohortId,studentId,fn){
+  const inMem=cohortId===activeCohort;
+  const list=inMem?students:await loadStudents(cohortId);
+  const s=list.find(x=>String(x.id)===String(studentId)); if(!s)return;
+  s.todos=s.todos||[]; fn(s);
+  if(inMem){ await saveStudents(); } else { await sSet("students:"+cohortId,JSON.stringify(list)); }
+  renderTodoView();
+}
+function toggleTodoGlobal(cid,sid,tid,checked){ todoMutate(cid,sid,x=>{const t=x.todos.find(z=>z.id===tid);if(t)t.done=checked;}); }
+function deleteTodoGlobal(cid,sid,tid){ if(!confirm("刪除此待辦？"))return; todoMutate(cid,sid,x=>{x.todos=x.todos.filter(z=>z.id!==tid);}); }
+function editTodoGlobal(cid,sid,tid,val){ todoMutate(cid,sid,x=>{const t=x.todos.find(z=>z.id===tid);if(t)t.text=val;}); }
+async function renderTodoView(){
+  const el=document.getElementById("todoView"); if(!el)return;
+  el.innerHTML='<div class="resultline" style="margin-top:0">載入待辦…</div>';
+  const rows=[];
+  for(const c of cohorts){
+    const list=c.id===activeCohort?students:await loadStudents(c.id);
+    list.forEach(s=>{ (s.todos||[]).forEach(t=>rows.push({c,s,t})); });
+  }
+  rows.sort((a,b)=>(a.t.done-b.t.done)|| (''+a.c.name).localeCompare(''+b.c.name,"zh-Hant"));
+  const open=rows.filter(r=>!r.t.done).length;
+  let html='<div class="resultline" style="margin-top:0">學員待辦項目 · 共 <b>'+rows.length+'</b> 筆（未完成 <b>'+open+'</b>）</div>';
+  if(!rows.length){ el.innerHTML=html+'<div class="empty"><b>目前沒有待辦</b>到學員列表勾選學員按「＋ 新增待辦」，或在學員檔案裡新增</div>'; return; }
+  html+='<div class="tablecard"><table class="tbl"><thead><tr>'+
+    '<th style="width:32px"></th><th>班別</th><th>姓名</th><th>英文</th><th>待辦內容</th><th>Status</th>'+
+    '<th class="cell-hide">居住地區</th><th>希望購入</th><th class="cell-hide">適合總價</th><th>房產</th><th>房貸</th><th>準備度</th><th class="cell-hide">物件</th>'+
+    '</tr></thead><tbody>';
+  rows.forEach(({c,s,t})=>{
+    const so=ssById(s.status);
+    const props=(s.properties||[]).map(p=>esc(p.address||"")).filter(Boolean).join("、")||"—";
+    const propClass=["有","只有繼承的房子"].includes(s.hasProperty)?"y":((s.hasProperty==="無"||s.hasProperty==="沒有")?"n":"");
+    const mortClass=(s.hasMortgage&&s.hasMortgage!=="無"&&s.hasMortgage!=="未填")?"y":(s.hasMortgage==="無"?"n":"");
+    html+='<tr'+(t.done?' style="opacity:.5"':'')+'>'+
+      '<td><input type="checkbox" '+(t.done?"checked":"")+' onchange="toggleTodoGlobal(\''+c.id+'\','+s.id+',\''+t.id+'\',this.checked)"></td>'+
+      '<td>'+esc(c.name)+'</td>'+
+      '<td style="cursor:pointer;color:var(--brand);font-weight:700" onclick="openStudentFrom(\''+c.id+'\','+s.id+')">'+esc(s.name)+'</td>'+
+      '<td>'+esc(s.englishName||"—")+'</td>'+
+      '<td><div style="display:flex;align-items:center;gap:6px"><input class="din" style="min-width:190px'+(t.done?';text-decoration:line-through;color:var(--muted)':'')+'" value="'+esc(t.text)+'" onchange="editTodoGlobal(\''+c.id+'\','+s.id+',\''+t.id+'\',this.value)"><button class="tdel" title="刪除" onclick="deleteTodoGlobal(\''+c.id+'\','+s.id+',\''+t.id+'\')">\u2715</button></div></td>'+
+      '<td>'+(so?statusPill(so):'<span style="color:var(--muted)">—</span>')+'</td>'+
+      '<td class="cell-hide"><div class="cell-wrap">'+esc(s.currentCity||"—")+'</div></td>'+
+      '<td><div class="cell-wrap">'+esc(s.desiredCity||"—")+'</div></td>'+
+      '<td class="cell-hide"><div class="price-wrap">'+esc(s.price||"—")+'</div></td>'+
+      '<td><span class="yn '+propClass+'">'+shortProp(s.hasProperty)+'</span></td>'+
+      '<td><span class="yn '+mortClass+'">'+shortMort(s.hasMortgage)+'</span></td>'+
+      '<td>'+(s.readiness!=null?('<b>'+s.readiness+'</b>'):esc(s.readinessRaw||"—"))+'</td>'+
+      '<td class="cell-hide"><div class="cell-wrap" style="max-width:12em">'+props+'</div></td>'+
+      '</tr>';
+  });
+  html+='</tbody></table></div>';
+  el.innerHTML=html;
+}
+async function openStudentFrom(cohortId,studentId){
+  if(cohortId!==activeCohort){ await switchCohort(cohortId); }
+  setView("list"); setTimeout(()=>openDrawer(studentId),60);
+}
+/* reno zone */
+function allProperties(){
+  const out=[];
+  students.forEach(s=>(s.properties||[]).forEach(p=>out.push({s,p})));
+  return out;
+}
+function consultListHtml(s){
+  const a=(s.consultations||[]).slice().reverse();
+  if(!a.length) return '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">尚無諮詢紀錄</div>';
+  return a.map(c=>{const f=c.form==="其他"?(c.formOther||"其他"):(c.form||"");return '<div class="consult"><div class="ch"><span>'+esc(c.date||"")+'</span><span>'+esc(f)+'</span></div><div class="cc">'+esc(c.content||"")+'</div></div>';}).join("");
+}
+function renderReno(){
+  const stageF=document.getElementById("fStage").value;
+  let items=allProperties();
+  if(stageF!=="all") items=items.filter(x=>{const o=psById(x.p.status);return o&&o.label===stageF;});
+  const grid=document.getElementById("propgrid");
+  document.getElementById("renoLine").innerHTML="共 <b>"+items.length+"</b> 件物件";
+  document.getElementById("renoEmpty").style.display=items.length?"none":"block";
+  grid.innerHTML="";
+  items.forEach(({s,p})=>{
+    const o=psById(p.status);
+    const pill=o?'<span class="tag" style="'+statusFill(o.color)+'">'+esc(o.label)+'</span>':'<span class="stagepill">未設定狀態</span>';
+    const card=document.createElement("div"); card.className="propcard"; card.onclick=()=>openProperty(s.id,p.id);
+    card.innerHTML='<div class="addr">'+esc(p.address||"未填地址")+'</div>'+
+      '<div class="owner">'+esc(s.name)+(p.price?' · '+esc(p.price):'')+'</div>'+pill+
+      (p.handoverDate?'<div class="stepwrap"><div class="lbl"><span>交屋日期</span><span>'+esc(p.handoverDate)+'</span></div></div>':'')+
+      (p.agent?'<div class="stepwrap"><div class="lbl"><span>仲介</span><span>'+esc(p.agent)+'</span></div></div>':'');
+    grid.appendChild(card);
+  });
+}
+
+/* stats */
+function priceBucket(str){const m=(str||"").match(/(\d[\d,]*)/);if(!m)return null;const n=parseInt(m[1].replace(/,/g,""),10);if(isNaN(n))return null;if(n<1500)return"1500萬以下";if(n<2000)return"1500–2000萬";if(n<2500)return"2000–2500萬";if(n<3000)return"2500–3000萬";return"3000萬以上";}
+function downPaymentBucket(str){const m=(str||"").match(/(\d[\d,]*)/);if(!m)return null;const n=parseInt(m[1].replace(/,/g,""),10);if(isNaN(n))return null;if(n<200)return"200萬以下";if(n<500)return"200–500萬";if(n<800)return"500–800萬";if(n<1200)return"800–1200萬";return"1200萬以上";}
+function tally(arr){const o={};arr.forEach(v=>o[v]=(o[v]||0)+1);return o;}
+function renderStats(){
+  const el=document.getElementById("statsView"); const N=students.length;
+  const hist=Array(10).fill(0);
+  students.forEach(s=>{if(s.readiness!=null){let b=Math.min(10,Math.max(1,Math.round(s.readiness)));hist[b-1]++;}});
+  const hmax=Math.max(1,...hist);
+  const propCounts=tally(students.map(s=>s.hasProperty||"未設定"));
+  const mortCounts=tally(students.map(s=>s.hasMortgage||"未設定"));
+  const regionCounts={}; students.forEach(s=>regionOf(s.desiredCity).forEach(r=>regionCounts[r]=(regionCounts[r]||0)+1));
+  const priceCounts=tally(students.map(s=>priceBucket(s.price)).filter(Boolean));
+  const tagCounts={}; tags.forEach(t=>tagCounts[t.name]=tagUsage(t.id));
+  const props=allProperties();
+  const stageCounts={}; props.forEach(({p})=>{const st=STAGES[p.stage||0];stageCounts[st]=(stageCounts[st]||0)+1;});
+
+  const kpiCards = [kpi(N,"學員總數")].concat(
+    tags.slice(0,3).map(t=>kpi(tagUsage(t.id),t.name)),
+    [kpi(props.length,"買到物件")]
+  ).join("");
+
+  el.innerHTML='<div class="kpis">'+kpiCards+'</div>'+
+    '<div class="statgrid">'+
+      '<div class="panel"><h3>準備度分布（滿分 10）</h3><div class="hist">'+hist.map((v,i)=>'<div class="col"><div class="bar" style="height:'+(v/hmax*100)+'%">'+(v?'<span>'+v+'</span>':'')+'</div><div class="xl">'+(i+1)+'</div></div>').join("")+'</div></div>'+
+      '<div class="panel"><h3>標籤分布</h3>'+barlist(tagCounts,N)+'</div>'+
+      '<div class="panel"><h3>希望購入地區</h3>'+barlist(regionCounts,N)+'</div>'+
+      '<div class="panel"><h3>物件改建階段</h3>'+(props.length?barlist(stageCounts,props.length):'<div style="color:var(--muted);font-size:13px">尚無買到的物件</div>')+'</div>'+
+      '<div class="panel"><h3>名下房產</h3>'+barlist(propCounts,N)+'</div>'+
+      '<div class="panel"><h3>名下房貸</h3>'+barlist(mortCounts,N)+'</div>'+
+      '<div class="panel" style="grid-column:1/-1"><h3>適合總價分布</h3>'+barlist(priceCounts,N)+'</div>'+
+    '</div>';
+}
+function kpi(n,l){return '<div class="kpi"><div class="n">'+n+'</div><div class="l">'+esc(l)+'</div></div>';}
+function barlist(obj,total){
+  let e=Object.entries(obj); if(!e.length)return'<div style="color:var(--muted);font-size:13px">無資料</div>';
+  e.sort((a,b)=>b[1]-a[1]); const max=Math.max(...e.map(x=>x[1]),1);
+  return e.map(([k,v])=>'<div class="barrow"><div class="bl">'+esc(k)+'</div><div class="bt"><i style="width:'+(v/max*100)+'%"></i></div><div class="bv">'+v+' <span style="color:var(--muted);font-weight:600">('+Math.round(v/total*100)+'%)</span></div></div>').join("");
+}
+
+/* 讓 textarea 高度隨內容自動變長 */
+function autoGrow(el){
+  if(!el) return;
+  el.style.height="auto";
+  el.style.height=(el.scrollHeight+2)+"px";
+}
+function initAutoGrow(root){
+  (root||document).querySelectorAll("textarea.agrow").forEach(autoGrow);
+}
+
+/* student drawer */
+function openDrawer(id){
+  selectedId=id; renoRef=null;
+  const s=students.find(x=>x.id===id); if(!s)return;
+  document.getElementById("dName").textContent=s.name;
+  document.getElementById("dMeta").textContent=[s.job,(s.age!=null?s.age+"歲":s.ageRaw)].filter(Boolean).join(" · ");
+  const tagBtns=tags.map(t=>{const on=(s.tagIds||[]).includes(t.id);
+    return '<button class="flagbtn" data-tag="'+t.id+'" onclick="this.classList.toggle(\'active\');this.style.cssText=this.classList.contains(\'active\')?\''+pillStyle(t.color)+';border-width:1.5px\':\'\'" '+(on?'data-on="1"':'')+' style="'+(on?pillStyle(t.color)+';border-width:1.5px':'')+'"><span class="dot" style="background:'+t.color+'"></span>'+esc(t.name)+'</button>';}).join("");
+  const props=(s.properties||[]);
+  const propHtml = props.length ? '<div class="plist">'+props.map(p=>propRow(s.id,p)).join("")+'</div>' : '';
+  document.getElementById("dBody").innerHTML=
+    '<div class="track"><h4>班級</h4><select id="dCohort" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;color:var(--ink);font-weight:600">'+
+      cohorts.map(c=>'<option value="'+c.id+'"'+(c.id===activeCohort?' selected':'')+'>'+esc(c.name)+'</option>').join("")+
+      '</select><div style="color:var(--muted);font-size:12px;margin-top:6px">改成其他班級並按「儲存變更」，會將此學員（含物件與進度）搬移過去。</div></div>'+
+    '<div class="track"><h4>聯絡資料</h4>'+
+      '<div class="miniL">姓名</div><input class="din" id="dName2" value="'+esc(s.name||"")+'">'+
+      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">手機</div><input class="din" id="dPhone" value="'+esc(s.phone||"")+'"></div>'+
+      '<div><div class="miniL">Line ID</div><input class="din" id="dLine" value="'+esc(s.lineId||"")+'"></div></div>'+
+      '<div class="miniL" style="margin-top:8px">Email</div><input class="din" id="dEmail" value="'+esc(s.email||"")+'">'+
+      '<div class="miniL" style="margin-top:8px">上課紀錄</div><textarea class="din agrow" id="dCourse" style="min-height:52px" oninput="autoGrow(this)">'+esc(s.courseRecord||"")+'</textarea>'+
+      '<div class="miniL" style="margin-top:8px">英文名</div><input class="din" id="dEnglish" value="'+esc(s.englishName||"")+'">'+
+      '<div class="miniL" style="margin-top:8px">私圈</div><input class="din" id="dPrivate" value="'+esc(s.privateCircle||"")+'">'+
+    '</div>'+
+    '<div class="track"><h4>Status</h4>'+studentStatusSelect("dStatus",s.status||"")+'</div>'+
+    
+    '<div class="track"><h4>待辦事項</h4>'+todoListHtml(s)+
+      '<div style="display:flex;gap:8px;margin-top:8px"><input class="din" id="dTodoNew" placeholder="新增待辦…" onkeydown="if(event.key===\'Enter\')addTodo()"><button class="btn primary sm" onclick="addTodo()">＋</button></div>'+
+    '</div>'+
+    '<div class="track"><h4>諮詢紀錄</h4>'+consultListHtml(s)+
+      '<div style="border-top:1px solid var(--line-soft);padding-top:10px;margin-top:4px">'+
+      '<div class="grid2"><div><div class="miniL">日期</div><input class="din" id="cDate" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
+      '<div><div class="miniL">形式</div><select class="din" id="cForm" onchange="document.getElementById(\'cOther\').style.display=this.value===\'其他\'?\'block\':\'none\'"><option>電話</option><option>實體</option><option>line訊息</option><option>line通話</option><option>zoom會議</option><option>其他</option></select></div></div>'+
+      '<input class="din" id="cOther" placeholder="其他形式說明" style="display:none;margin-top:8px">'+
+      '<div class="miniL" style="margin-top:8px">內容</div><textarea class="din" id="cContent" style="min-height:56px" placeholder="這次諮詢的重點…"></textarea>'+
+      '<button class="btn primary sm" style="margin-top:8px" onclick="addConsult()">＋ 新增諮詢紀錄</button>'+
+    '</div></div>'+
+    '<div class="track"><h4>標籤 <span class="mini" style="color:var(--brand);cursor:pointer" onclick="openTagMgr()">＋ 管理標籤</span></h4><div class="flagbtns" id="drawerTags">'+tagBtns+'</div></div>'+
+    '<div class="track"><h4>進度備註 / 需求</h4><textarea id="dProgress" placeholder="記錄輔導進度、下一步、卡關點…">'+esc(s.progressNote||"")+'</textarea></div>'+
+    '<div class="track"><h4>買到的物件</h4>'+propHtml+'<button class="addprop" onclick="openPropModal(\''+s.id+'\')">＋ 新增買到的物件</button></div>'+
+    '<div class="track"><h4>學員資料</h4>'+
+      '<div class="miniL">希望購入城市／區域</div><input class="din" id="dDesired" value="'+esc(s.desiredCity||"")+'">'+
+      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">適合總價</div><input class="din" id="dPrice" value="'+esc(s.price||"")+'"></div>'+
+      '<div><div class="miniL">可運用自備款</div><input class="din" id="dDown" value="'+esc(s.downPayment||"")+'"></div></div>'+
+      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">名下房產</div>'+optSelect("dHasProp",PROP_OPTIONS,s.hasProperty||"")+'</div>'+
+      '<div><div class="miniL">名下房貸</div>'+optSelect("dHasMort",MORT_OPTIONS,s.hasMortgage||"")+'</div></div>'+
+      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">共同決策者</div><input class="din" id="dDecision" value="'+esc(s.decisionMaker||"")+'"></div>'+
+      '<div><div class="miniL">準備度</div><input class="din" id="dReadiness" value="'+esc(s.readinessRaw||"")+'"></div></div>'+
+      '<div class="miniL" style="margin-top:8px">目前居住城市／區域</div><input class="din" id="dCurrent" value="'+esc(s.currentCity||"")+'">'+
+      '<div class="miniL" style="margin-top:8px">收入</div><input class="din" id="dIncome" value="'+esc(s.income||"")+'">'+
+      '<div class="miniL" style="margin-top:8px">下一步行動</div><textarea class="din" id="dAction" style="min-height:52px">'+esc(s.action||"")+'</textarea>'+
+      '<div class="miniL" style="margin-top:8px">備註</div><textarea class="din" id="dNotes" style="min-height:70px">'+esc(s.notes||"")+'</textarea>'+
+    '</div>';
+  // mark active tag buttons
+  document.querySelectorAll("#drawerTags .flagbtn").forEach(b=>{ if(b.dataset.on) b.classList.add("active"); });
+  document.getElementById("dFoot").innerHTML='<button class="btn primary" onclick="saveDrawer()">儲存變更</button><button class="btn ghost" onclick="closeDrawer()">關閉</button><button class="btn del" onclick="deleteStudent()">刪除學員</button>';
+  document.getElementById("scrim").classList.add("show"); document.getElementById("drawer").classList.add("show");
+  initAutoGrow(document.getElementById("dBody"));
+}
+function propRow(sid,p){
+  const o=psById(p.status); const st=o?esc(o.label):"未設定";
+  return '<div class="prow"><div class="ptop"><div><div class="paddr">'+esc(p.address||"未填地址")+'</div>'+
+    '<div class="pmeta">'+st+(p.handoverDate?' · 交屋 '+esc(p.handoverDate):'')+(p.price?' · '+esc(p.price):'')+'</div></div>'+
+    '<button class="goreno" onclick="event.stopPropagation();gotoReno(\''+sid+'\',\''+p.id+'\')">改建專區 →</button></div></div>';
+}
+function field(k,v){const blank=!v||!(''+v).trim();return '<div class="field"><div class="k">'+k+'</div><div class="v'+(blank?" blank":"")+'">'+(blank?"未填寫":esc(v))+'</div></div>';}
+function closeDrawer(){document.getElementById("scrim").classList.remove("show");document.getElementById("drawer").classList.remove("show");selectedId=null;renoRef=null;if(refreshPending){refreshPending=false;remoteRefresh();}}
+async function saveDrawer(){
+  const s=students.find(x=>x.id===selectedId); if(!s)return;
+  collectDrawerFields(s);
+  const target=document.getElementById("dCohort").value;
+  if(target && target!==activeCohort){
+    const tc=cohorts.find(c=>c.id===target);
+    if(!confirm('確定將「'+s.name+'」搬移到「'+(tc?tc.name:"")+'」？\n該學員的物件與進度會一併移過去。')){ return; }
+    const destList=await loadStudents(target);
+    const moved=JSON.parse(JSON.stringify(s));
+    moved.id=(destList.reduce((m,x)=>Math.max(m,x.id||0),0)||0)+1;  // avoid id collision
+    destList.push(moved);
+    await sSet("students:"+target, JSON.stringify(destList));
+    students=students.filter(x=>x.id!==selectedId);
+    await saveStudents();
+    selected.delete(selectedId);
+    closeDrawer(); renderCohorts(); render();
+    toast("已將 "+s.name+" 搬移至「"+(tc?tc.name:"")+"」");
+    return;
+  }
+  await saveStudents(); closeDrawer(); render(); toast("已儲存 "+s.name+" 的進度");
+}
+async function deleteStudent(){
+  const s=students.find(x=>x.id===selectedId); if(!s)return;
+  if(!confirm('確定刪除學員「'+s.name+'」？此動作無法復原。'))return;
+  students=students.filter(x=>x.id!==selectedId); await saveStudents(); closeDrawer(); render(); toast("已刪除 "+s.name);
+}
+
+/* property add/edit */
+function openPropModal(sid){ propEdit={sid,pid:null}; document.getElementById("pOwnerWrap").style.display="none"; document.getElementById("propModalTitle").textContent="新增買到的物件"; ["pAddr","pArea","pPrice","pDate"].forEach(i=>document.getElementById(i).value=""); document.getElementById("propModal").classList.add("show"); setTimeout(()=>document.getElementById("pAddr").focus(),50); }
+function openPropModalReno(){
+  if(!students.length){ toast("此班級尚無學員，請先新增學員"); return; }
+  propEdit={sid:null,pid:null,fromReno:true};
+  document.getElementById("pOwner").value="";
+  document.getElementById("pOwnerSearch").value="";
+  document.getElementById("pOwnerPicked").style.display="none";
+  document.getElementById("pOwnerList").classList.remove("show");
+  document.getElementById("pOwnerWrap").style.display="block";
+  document.getElementById("propModalTitle").textContent="新增物件";
+  ["pAddr","pArea","pPrice","pDate"].forEach(i=>document.getElementById(i).value="");
+  document.getElementById("propModal").classList.add("show");
+  setTimeout(()=>document.getElementById("pOwnerSearch").focus(),50);
+}
+let ownerMatches=[], ownerIdx=-1;
+function ownerFilter(){
+  const q=document.getElementById("pOwnerSearch").value.trim().toLowerCase();
+  const list=document.getElementById("pOwnerList");
+  ownerMatches=[...students]
+    .filter(s=>!q||(''+s.name).toLowerCase().includes(q)||(''+(s.desiredCity||'')).toLowerCase().includes(q))
+    .sort((a,b)=>(''+a.name).localeCompare(''+b.name,"zh-Hant"))
+    .slice(0,50);
+  ownerIdx=-1;
+  if(!ownerMatches.length){ list.innerHTML='<div class="none">找不到符合的學員</div>'; list.classList.add("show"); return; }
+  list.innerHTML=ownerMatches.map((s,i)=>'<div class="opt" data-i="'+i+'" onclick="ownerPick('+i+')">'+esc(s.name)+(s.desiredCity?'<span class="sub">'+esc(s.desiredCity)+'</span>':'')+'</div>').join("");
+  list.classList.add("show");
+}
+function ownerPick(i){
+  const s=ownerMatches[i]; if(!s) return;
+  document.getElementById("pOwner").value=s.id;
+  document.getElementById("pOwnerSearch").value=s.name;
+  const p=document.getElementById("pOwnerPicked"); p.textContent="已選：" + s.name; p.style.display="block";
+  document.getElementById("pOwnerList").classList.remove("show");
+  document.getElementById("pAddr").focus();
+}
+function ownerKey(e){
+  const list=document.getElementById("pOwnerList");
+  if(!list.classList.contains("show")) return;
+  if(e.key==="ArrowDown"||e.key==="ArrowUp"){
+    e.preventDefault();
+    ownerIdx += (e.key==="ArrowDown"?1:-1);
+    if(ownerIdx<0) ownerIdx=ownerMatches.length-1;
+    if(ownerIdx>=ownerMatches.length) ownerIdx=0;
+    list.querySelectorAll(".opt").forEach((el,i)=>el.classList.toggle("active",i===ownerIdx));
+    const act=list.querySelector(".opt.active"); if(act) act.scrollIntoView({block:"nearest"});
+  } else if(e.key==="Enter"){
+    e.preventDefault();
+    ownerPick(ownerIdx>=0?ownerIdx:0);
+  } else if(e.key==="Escape"){ list.classList.remove("show"); }
+}
+document.addEventListener("click",e=>{
+  const combo=document.querySelector("#pOwnerWrap .combo");
+  if(combo && !combo.contains(e.target)) document.getElementById("pOwnerList").classList.remove("show");
+});
+function closePropModal(){document.getElementById("propModal").classList.remove("show");}
+async function submitProp(){
+  const addr=document.getElementById("pAddr").value.trim();
+  if(!addr){toast("請輸入物件地址");return;}
+  let sid=propEdit.sid;
+  if(propEdit.fromReno){ sid=document.getElementById("pOwner").value; if(!sid){toast("請選擇屋主學員");return;} }
+  const s=students.find(x=>String(x.id)===String(sid)); if(!s){toast("找不到對應學員");return;}
+  s.properties=s.properties||[];
+  const rec={id:"p"+Date.now(),address:addr,area:document.getElementById("pArea").value.trim(),price:document.getElementById("pPrice").value.trim(),boughtDate:document.getElementById("pDate").value.trim(),stage:0,renovNote:""};
+  s.properties.push(rec);
+  await saveStudents(); closePropModal();
+  if(document.getElementById("drawer").classList.contains("show")) openDrawer(s.id);
+  render(); toast("已新增物件「"+addr+"」");
+}
+
+/* renovation property drawer */
+function gotoReno(sid,pid){ closeDrawer(); setView("reno"); setTimeout(()=>openProperty(sid,pid),260); }
+function pIn(label,id,val,extra){return '<div><div class="miniL">'+label+'</div><input class="din" id="'+id+'" value="'+esc(val||"")+'" '+(extra||"")+'></div>';}
+function pTA(label,id,val,ph){return '<div class="miniL" style="margin-top:8px">'+label+'</div><textarea class="din" id="'+id+'" style="min-height:46px" placeholder="'+(ph||"")+'">'+esc(val||"")+'</textarea>';}
+function pWithin(a,b){ if(!a||!b)return false; const now=new Date().toISOString().slice(0,7); const n=x=>(''+x).replace(/\//g,'-').slice(0,7); return n(a)<=now&&now<=n(b); }
+function fmtMoney(v){ v=Math.round(v||0); return v.toLocaleString("en-US"); }
+function loanMonthlyById(pfx){
+  const g=id=>{const e=document.getElementById(id);return e?e.value:"";};
+  const inGrace=pWithin(g(pfx+"GraceS"),g(pfx+"GraceE"));
+  return pnum(g(inGrace?pfx+"Int":pfx+"PI"));
+}
+function recalcProp(){
+  const g=id=>{const e=document.getElementById(id);return e?e.value:"";};
+  const setT=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=fmtMoney(v);};
+  const taxSum=["tFeeAgent","tDeed","tStamp","tScriv","tReg","tTrans"].reduce((a,k)=>a+pnum(g(k)),0);
+  const total=pnum(g("rPrice"))+taxSum+pnum(g("rReno"));
+  setT("cTaxSum",taxSum); setT("cTotalCost",total);
+  const ml=loanMonthlyById("l1")+loanMonthlyById("l4");
+  setT("cMonthlyLoan",ml);
+  const g1=pWithin(g("l1GraceS"),g("l1GraceE")), g4=pWithin(g("l4GraceS"),g("l4GraceE"));
+  const gm=document.getElementById("cLoanMode"); if(gm) gm.textContent="（科目01："+(g1?"寬限期·利息":"本息")+"、科目04："+(g4?"寬限期·利息":"本息")+"）";
+  const netRent=pnum(g("rRentGross"))-pnum(g("rRentMgmt"));
+  setT("cNetRent",netRent); setT("cCashflow",netRent-ml);
+}
+function openProperty(sid,pid){
+  const s=students.find(x=>x.id===sid); if(!s)return;
+  const p=(s.properties||[]).find(x=>x.id===pid); if(!p)return;
+  renoRef={sid,pid}; selectedId=null;
+  const tx=p.taxes||{},l1=p.loan01||{},l4=p.loan04||{},rt=p.rent||{},ob=p.old||{};
+  document.getElementById("dName").textContent=p.address||"未填地址";
+  document.getElementById("dMeta").textContent="屋主："+s.name;
+  document.getElementById("dBody").innerHTML=
+    '<div class="track"><h4>物件狀態</h4>'+propStatusSelect("rStatus",p.status||"")+'</div>'+
+    '<div class="track"><h4>物件資料</h4>'+
+      '<div class="miniL">地址</div><input class="din" id="rAddr" value="'+esc(p.address||"")+'">'+
+      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">簽約日期</div><input class="din" id="rContract" value="'+esc(p.contractDate||"")+'" placeholder="2026/03"></div>'+
+      '<div><div class="miniL">交屋日期</div><input class="din" id="rHandover" value="'+esc(p.handoverDate||"")+'" placeholder="2026/06"></div></div>'+
+      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">仲介</div><input class="din" id="rAgent" value="'+esc(p.agent||"")+'"></div>'+
+      '<div><div class="miniL">成交總價</div><input class="din" id="rPrice" value="'+esc(p.price||"")+'"></div></div>'+
+      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">基地／坪數</div><input class="din" id="rArea" value="'+esc(p.area||"")+'"></div>'+
+      '<div><div class="miniL">買到日期</div><input class="din" id="rDate" value="'+esc(p.boughtDate||"")+'"></div></div>'+
+      '<div class="miniL" style="margin-top:8px">登記人</div><input class="din" id="rRegistrant" value="'+esc(p.registrant||"")+'">'+
+    '</div>'+
+    '<div class="track"><h4>改建進度備註</h4><textarea class="din" id="rNote" style="min-height:60px" placeholder="整合戶數、送件進度、建商、權變比例、卡關點…">'+esc(p.renovNote||"")+'</textarea></div>'+
+        '<div class="track"><h4>財務・成本</h4>'+
+      pTA("裝潢","rReno",p.reno,"裝潢費用").replace("min-height:46px","min-height:0").replace("<textarea","<input").replace("></textarea>","")+
+      '<details class="pdet"><summary>稅費（合計 <span id="cTaxSum">0</span>）</summary><div class="pdbody">'+
+        '<div class="grid2">'+pIn("仲介費","tFeeAgent",tx.feeAgent,'oninput="recalcProp()"')+pIn("契稅","tDeed",tx.deed,'oninput="recalcProp()"')+'</div>'+
+        '<div class="grid2" style="margin-top:8px">'+pIn("印花稅","tStamp",tx.stamp,'oninput="recalcProp()"')+pIn("代書費","tScriv",tx.scriv,'oninput="recalcProp()"')+'</div>'+
+        '<div class="grid2" style="margin-top:8px">'+pIn("登記規費","tReg",tx.reg,'oninput="recalcProp()"')+pIn("謄本費","tTrans",tx.trans,'oninput="recalcProp()"')+'</div>'+
+      '</div></details>'+
+      '<div class="pcalc"><span>總成本（總價＋稅費＋裝潢）</span><b id="cTotalCost">0</b></div>'+
+      '<div class="grid2" style="margin-top:10px">'+pIn("出資金額","rInvestAmt",p.investAmt)+pIn("出資比例","rInvestRatio",p.investRatio,'placeholder="例：50%"')+'</div>'+
+      '<div style="margin-top:8px">'+pIn("持股比例","rShareRatio",p.shareRatio,'placeholder="例：50%"')+'</div>'+
+    '</div>'+
+    '<div class="track"><h4>貸款</h4>'+
+      '<div class="miniL" style="font-weight:800;color:var(--ink)">科目01（購屋貸款）</div>'+
+      '<div class="grid2" style="margin-top:6px">'+pIn("銀行","l1Bank",l1.bank)+pIn("金額","l1Amt",l1.amount)+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("貸款年限","l1Years",l1.years)+pIn("利率","l1Rate",l1.rate,'placeholder="例：2.1%"')+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("寬限期起","l1GraceS",l1.graceStart,'placeholder="2026/03" oninput="recalcProp()"')+pIn("寬限期迄","l1GraceE",l1.graceEnd,'placeholder="2029/03" oninput="recalcProp()"')+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("利息／月","l1Int",l1.interestPM,'oninput="recalcProp()"')+pIn("本息／月","l1PI",l1.piPM,'oninput="recalcProp()"')+'</div>'+
+      '<div class="miniL" style="font-weight:800;color:var(--ink);margin-top:14px">科目04（週轉金）</div>'+
+      '<div class="grid2" style="margin-top:6px">'+pIn("銀行","l4Bank",l4.bank)+pIn("金額","l4Amt",l4.amount)+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("貸款年限","l4Years",l4.years)+pIn("利率","l4Rate",l4.rate,'placeholder="例：2.5%"')+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("寬限期起","l4GraceS",l4.graceStart,'placeholder="2026/03" oninput="recalcProp()"')+pIn("寬限期迄","l4GraceE",l4.graceEnd,'placeholder="2029/03" oninput="recalcProp()"')+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("利息／月","l4Int",l4.interestPM,'oninput="recalcProp()"')+pIn("本息／月","l4PI",l4.piPM,'oninput="recalcProp()"')+'</div>'+
+      '<div class="pcalc"><span>每月貸款支出</span><b id="cMonthlyLoan">0</b></div>'+
+      '<div class="psub" id="cLoanMode">（依今天是否在寬限期，自動用利息或本息加總）</div>'+
+    '</div>'+
+    '<div class="track"><h4>租金・現金流</h4>'+
+      '<details class="pdet"><summary>每月淨租金收入（<span id="cNetRent">0</span>）</summary><div class="pdbody">'+
+        '<div class="grid2">'+pIn("總收租金","rRentGross",rt.gross,'oninput="recalcProp()"')+pIn("代管費","rRentMgmt",rt.mgmt,'oninput="recalcProp()"')+'</div>'+
+      '</div></details>'+
+      '<div class="pcalc"><span>每月淨現金流（淨租金－每月貸款支出）</span><b id="cCashflow">0</b></div>'+
+    '</div>'+
+    '<div class="track"><h4>照片・格局</h4>'+
+      pTA("裝修前照片","rPhotoBefore",p.photosBefore,"貼上圖片或雲端連結，一行一個")+
+      pTA("裝修後照片","rPhotoAfter",p.photosAfter,"貼上圖片或雲端連結，一行一個")+
+      pTA("格局圖","rFloorPlan",p.floorPlan,"貼上圖片或雲端連結，一行一個")+
+      '<div class="psub">目前用連結方式；若要直接上傳檔案，之後可加 Supabase 儲存空間。</div>'+
+    '</div>'+
+    '<div class="track"><h4>改建資訊</h4>'+
+      pTA("改建基地","rSite",p.site,"").replace("min-height:46px","min-height:0").replace("<textarea","<input").replace("></textarea>","")+
+      '<div class="grid2" style="margin-top:8px">'+pIn("開發商","rDeveloper",p.developer)+pIn("建商","rBuilder",p.builder)+'</div>'+
+    '</div>'+
+    '<div class="track"><h4>舊屋</h4>'+
+      '<div class="grid2">'+pIn("主建物","oMain",ob.main)+pIn("附屬建物","oAttached",ob.attached)+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("公設","oCommon",ob.common)+pIn("權狀坪數","oDeed",ob.deed)+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("土地持份坪數-建地","oLandBuild",ob.landBuild)+pIn("土地使用分區","oZoning",ob.zoning)+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("容積率","oFar",ob.far)+pIn("土地持份坪數-道路用地","oLandRoad",ob.landRoad)+'</div>'+
+    '</div>'+
+    '<div class="track"><h4>預估分回</h4>'+
+      '<div>'+pIn("預估分回室內坪數","rEstIndoor",p.estIndoor)+'</div>'+
+      '<details class="pdet"><summary>室內坪數計算公式</summary><div class="pdbody"><textarea class="din" id="rEstIndoorNote" style="min-height:56px" placeholder="填寫此案的分回計算方式…">'+esc(p.estIndoorNote||"")+'</textarea></div></details>'+
+      '<div style="margin-top:10px">'+pIn("預估分回權狀坪數","rEstDeed",p.estDeed)+'</div>'+
+      '<details class="pdet"><summary>權狀坪數計算公式</summary><div class="pdbody"><textarea class="din" id="rEstDeedNote" style="min-height:56px" placeholder="填寫此案的分回計算方式…">'+esc(p.estDeedNote||"")+'</textarea></div></details>'+
+      '<div style="margin-top:10px">'+pIn("預估分回價值","rEstValue",p.estValue)+'</div>'+
+      '<details class="pdet"><summary>價值計算公式</summary><div class="pdbody"><textarea class="din" id="rEstValueNote" style="min-height:56px" placeholder="填寫此案的分回計算方式…">'+esc(p.estValueNote||"")+'</textarea></div></details>'+
+    '</div>'+
+    '<div class="track"><h4>記帳表</h4>'+
+      pIn("Google Drive 記帳表連結","rDrive",p.driveLink,'placeholder="貼上 Google Drive 連結"')+
+      (p.driveLink?'<div style="margin-top:8px"><a href="'+esc(p.driveLink)+'" target="_blank" style="color:var(--brand);font-weight:700">開啟記帳表 →</a></div>':'')+
+    '</div>'+
+    '<div class="field"><div class="k">學員</div><div class="v" style="cursor:pointer;color:var(--brand);font-weight:700" onclick="openDrawer(\''+sid+'\')">'+esc(s.name)+' →</div></div>';
+  document.getElementById("dFoot").innerHTML='<button class="btn primary" onclick="saveProperty()">儲存變更</button><button class="btn ghost" onclick="closeDrawer()">關閉</button><button class="btn del" onclick="deleteProperty()">刪除物件</button>';
+  document.getElementById("scrim").classList.add("show"); document.getElementById("drawer").classList.add("show");
+  setTimeout(recalcProp,0);
+}
+async function saveProperty(){
+  const s=students.find(x=>x.id===renoRef.sid); const p=(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p)return;
+  const g=id=>{const e=document.getElementById(id);return e?e.value:"";};
+  p.status=g("rStatus"); p.address=g("rAddr").trim(); p.contractDate=g("rContract").trim(); p.handoverDate=g("rHandover").trim();
+  p.agent=g("rAgent").trim(); p.registrant=g("rRegistrant").trim(); p.price=g("rPrice").trim(); p.area=g("rArea").trim(); p.boughtDate=g("rDate").trim(); p.renovNote=g("rNote");
+  p.reno=g("rReno");
+  p.taxes={feeAgent:g("tFeeAgent"),deed:g("tDeed"),stamp:g("tStamp"),scriv:g("tScriv"),reg:g("tReg"),trans:g("tTrans")};
+  p.investAmt=g("rInvestAmt"); p.investRatio=g("rInvestRatio"); p.shareRatio=g("rShareRatio");
+  p.loan01={bank:g("l1Bank"),amount:g("l1Amt"),years:g("l1Years"),graceStart:g("l1GraceS"),graceEnd:g("l1GraceE"),rate:g("l1Rate"),interestPM:g("l1Int"),piPM:g("l1PI")};
+  p.loan04={bank:g("l4Bank"),amount:g("l4Amt"),years:g("l4Years"),graceStart:g("l4GraceS"),graceEnd:g("l4GraceE"),rate:g("l4Rate"),interestPM:g("l4Int"),piPM:g("l4PI")};
+  p.rent={gross:g("rRentGross"),mgmt:g("rRentMgmt")};
+  p.photosBefore=g("rPhotoBefore"); p.photosAfter=g("rPhotoAfter"); p.floorPlan=g("rFloorPlan");
+  p.site=g("rSite"); p.developer=g("rDeveloper").trim(); p.builder=g("rBuilder").trim();
+  p.old={main:g("oMain"),attached:g("oAttached"),common:g("oCommon"),deed:g("oDeed"),landBuild:g("oLandBuild"),zoning:g("oZoning"),far:g("oFar"),landRoad:g("oLandRoad")};
+  p.estIndoor=g("rEstIndoor"); p.estIndoorNote=g("rEstIndoorNote"); p.estDeed=g("rEstDeed"); p.estDeedNote=g("rEstDeedNote"); p.estValue=g("rEstValue"); p.estValueNote=g("rEstValueNote");
+  p.driveLink=g("rDrive").trim();
+  await saveStudents(); closeDrawer(); render(); toast("已更新物件");
+}
+async function deleteProperty(){
+  const s=students.find(x=>x.id===renoRef.sid); if(!s)return;
+  if(!confirm("確定刪除此物件？"))return;
+  s.properties=(s.properties||[]).filter(x=>x.id!==renoRef.pid);
+  await saveStudents(); closeDrawer(); render(); toast("已刪除物件");
+}
+
+/* add student */
+const ADD_FIELDS=[["name","姓名",true],["desiredCity","希望購入城市／區域"],["price","適合總價"],["downPayment","可運用自備款"],["currentCity","目前居住城市／區域"],["decisionMaker","共同決策者"],["job","工作"],["income","收入"],["ageRaw","年齡"],["readinessRaw","準備度（如 8分/10分）"],["action","下一步行動","","ta"],["notes","備註","","ta"]];
+function openAdd(){
+  document.getElementById("addFields").innerHTML=
+    ADD_FIELDS.map(f=>'<div class="frow"><label>'+f[1]+(f[2]?' *':'')+'</label>'+(f[3]==="ta"?'<textarea id="add_'+f[0]+'" rows="2"></textarea>':'<input type="text" id="add_'+f[0]+'">')+'</div>').join("")+
+    '<div class="grid2"><div class="frow"><label>名下房產</label><select id="add_hasProperty"><option value="">未設定</option><option>只有繼承的房子</option><option>有</option><option>無</option></select></div>'+
+    '<div class="frow"><label>名下房貸</label><select id="add_hasMortgage"><option value="">未設定</option><option>科目01 購屋貸款</option><option>科目04 週轉金</option><option>科目01+04 都有</option><option>無</option></select></div></div>'+
+    '<div class="frow"><label>英文名</label><input type="text" id="add_englishName"></div>'+
+    '<div class="frow"><label>私圈</label><input type="text" id="add_privateCircle"></div>'+
+    '<div class="frow"><label>標籤</label><div class="flagbtns" id="addTags">'+tags.map(t=>'<button class="flagbtn" data-tag="'+t.id+'" onclick="this.classList.toggle(\'active\');this.style.cssText=this.classList.contains(\'active\')?\''+pillStyle(t.color)+';border-width:1.5px\':\'\'"><span class="dot" style="background:'+t.color+'"></span>'+esc(t.name)+'</button>').join("")+'</div></div>';
+  document.getElementById("addModal").classList.add("show");
+}
+function closeAdd(){document.getElementById("addModal").classList.remove("show");}
+function parseNum(str){const m=(str||"").match(/(\d+(\.\d+)?)/);return m?parseFloat(m[1]):null;}
+async function submitAdd(){
+  const g=id=>{const e=document.getElementById("add_"+id);return e?e.value.trim():"";};
+  const name=g("name"); if(!name){toast("請填寫姓名");return;}
+  const ids=[]; document.querySelectorAll("#addTags .flagbtn.active").forEach(b=>ids.push(b.dataset.tag));
+  const nextId=(students.reduce((m,s)=>Math.max(m,s.id),0)||0)+1;
+  students.push({id:nextId,name,currentCity:g("currentCity"),desiredCity:g("desiredCity"),price:g("price"),downPayment:g("downPayment"),decisionMaker:g("decisionMaker"),hasProperty:document.getElementById("add_hasProperty").value,hasMortgage:document.getElementById("add_hasMortgage").value,ageRaw:g("ageRaw"),age:parseNum(g("ageRaw")),job:g("job"),income:g("income"),readinessRaw:g("readinessRaw"),readiness:parseNum(g("readinessRaw")),action:g("action"),notes:g("notes"),tagIds:ids,properties:[],progressNote:"",privateCircle:g("privateCircle"),englishName:g("englishName")});
+  await saveStudents(); closeAdd(); render(); toast("已新增學員 "+name);
+}
+
+/* csv */
+function exportCsv(){
+  const cols=[["name","姓名"],["englishName","英文"],["privateCircle","私圈"],["desiredCity","希望購入"],["price","適合總價"],["downPayment","自備款"],["currentCity","居住地區"],["decisionMaker","共同決策者"],["hasProperty","名下房產"],["hasMortgage","名下房貸"],["ageRaw","年齡"],["job","工作"],["income","收入"],["readinessRaw","準備度"],["action","下一步行動"],["notes","備註"],["progressNote","進度備註"]];
+  const q=v=>'"'+(''+(v==null?"":v)).replace(/"/g,'""')+'"';
+  let rows=[["標籤","買到物件",...cols.map(c=>c[1])].map(q).join(",")];
+  filtered().forEach(s=>{
+    const tg=studentTags(s).map(t=>t.name).join("/")||"未分類";
+    const propStr=(s.properties||[]).map(p=>p.address+"("+STAGES[p.stage||0]+")").join("；");
+    rows.push([q(tg),q(propStr),...cols.map(c=>q(s[c[0]]))].join(","));
+  });
+  const name=(cohorts.find(c=>c.id===activeCohort)||{}).name||"學員";
+  const blob=new Blob(["\uFEFF"+rows.join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="陪跑進度_"+name+".csv"; a.click();
+  toast("已匯出 "+filtered().length+" 筆");
+}
+
+/* import excel/csv */
+const IMP_TARGETS=[
+  {key:"name",label:"姓名",req:true,aliases:["名字","姓名","name"]},
+  {key:"currentCity",label:"目前居住城市／區域",aliases:["目前居住","現居","居住"]},
+  {key:"desiredCity",label:"希望購入城市／區域",aliases:["希望購入","購入","希望"]},
+  {key:"price",label:"適合總價",aliases:["適合總價","總價"]},
+  {key:"downPayment",label:"可運用自備款",aliases:["自備款","可運用","自備"]},
+  {key:"decisionMaker",label:"共同決策者",aliases:["共同決策","決策"]},
+  {key:"hasProperty",label:"名下有無房產",aliases:["有無房產","房產"]},
+  {key:"hasMortgage",label:"名下有無房貸",aliases:["有無房貸","房貸"]},
+  {key:"privateCircle",label:"私圈",aliases:["私圈"]},
+  {key:"englishName",label:"英文",aliases:["英文","英文名","english"]},
+  {key:"ageRaw",label:"年齡",aliases:["年齡","年紀","age"]},
+  {key:"job",label:"工作",aliases:["工作","職業","job"]},
+  {key:"income",label:"收入",aliases:["收入","年收","income"]},
+  {key:"readinessRaw",label:"準備度",aliases:["準備度","準備"]},
+  {key:"action",label:"下一步行動",aliases:["行動","下一步"]},
+  {key:"notes",label:"備註",aliases:["備註","note","需求"]},
+  {key:"tagsCol",label:"標籤／狀態（選填）",aliases:["ok","狀態","標籤","tag"]}
+];
+let importState={rows:[],headers:[],targetCohort:null,isNew:false,newName:""};
+function openImport(){
+  importState={rows:[],headers:[],targetCohort:activeCohort,isNew:false,newName:""};
+  const opts=cohorts.map(c=>'<option value="'+c.id+'"'+(c.id===activeCohort?' selected':'')+'>'+esc(c.name)+'</option>').join('');
+  document.getElementById("impBody").innerHTML=
+    '<div class="frow"><label>匯入到班級</label><select id="impCohort" onchange="impCohortChange()">'+opts+'<option value="__new__">＋ 建立新班級…</option></select></div>'+
+    '<div class="frow" id="impNewWrap" style="display:none"><label>新班級名稱</label><input type="text" id="impNewName" placeholder="例如：第二班"></div>'+
+    '<div class="imp-drop" id="impDrop" onclick="document.getElementById(\'impFile\').click()">點此選擇 Excel／CSV 檔案<br><span style="font-size:12px">支援 .xlsx .xls .csv</span></div>'+
+    '<input type="file" id="impFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="impFilePicked(this)">'+
+    '<p style="color:var(--muted);font-size:12.5px;margin:12px 0 0">欄位名稱與第一班相同時（名字、希望購入城市/區域…）會自動對應；不同也可以在下一步手動指定。</p>';
+  document.getElementById("impFoot").innerHTML='<button class="btn ghost" onclick="closeImport()">取消</button>';
+  document.getElementById("importModal").classList.add("show");
+}
+function closeImport(){ document.getElementById("importModal").classList.remove("show"); }
+function impCohortChange(){ document.getElementById("impNewWrap").style.display=document.getElementById("impCohort").value==="__new__"?"block":"none"; }
+function csvRows(text){
+  text=text.replace(/^\uFEFF/,""); const rows=[]; let row=[],cur="",q=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+    else { if(ch==='"')q=true; else if(ch===','){row.push(cur);cur="";} else if(ch==='\n'){row.push(cur);rows.push(row);row=[];cur="";} else if(ch!=='\r')cur+=ch; }
+  }
+  if(cur!==""||row.length){row.push(cur);rows.push(row);}
+  return rows;
+}
+function impFilePicked(inp){
+  const file=inp.files[0]; if(!file)return;
+  const cv=document.getElementById("impCohort").value;
+  if(cv==="__new__"){ const nm=document.getElementById("impNewName").value.trim(); if(!nm){toast("請先輸入新班級名稱");inp.value="";return;} importState.isNew=true; importState.newName=nm; }
+  else { importState.isNew=false; importState.targetCohort=cv; }
+  const ext=file.name.split(".").pop().toLowerCase(); const reader=new FileReader();
+  const done=rows=>{ rows=(rows||[]).filter(r=>r&&r.some(c=>(''+(c==null?'':c)).trim()!=='')); if(!rows.length){toast("讀不到任何資料");return;} importState.rows=rows; importState.headers=rows[0].map(h=>(''+(h==null?'':h)).trim()); showMapping(); };
+  if(window.XLSX){
+    reader.onload=e=>{ try{ const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"}); const ws=wb.Sheets[wb.SheetNames[0]]; done(XLSX.utils.sheet_to_json(ws,{header:1,defval:""})); }catch(err){ toast("解析失敗："+err.message); } };
+    reader.readAsArrayBuffer(file);
+  } else if(ext==="csv"){ reader.onload=e=>done(csvRows(e.target.result)); reader.readAsText(file,"utf-8"); }
+  else { toast("Excel 解析元件未載入，請改用 CSV，或重新整理頁面再試"); }
+}
+function autoMap(){
+  const map={};
+  IMP_TARGETS.forEach(t=>{ let idx=-1;
+    importState.headers.forEach((h,i)=>{ if(idx>=0||!h)return; const hl=h.toLowerCase();
+      if(t.aliases.some(a=>{const al=a.toLowerCase();return hl.includes(al)||(al.includes(hl)&&hl.length>=2);})) idx=i; });
+    map[t.key]=idx; });
+  return map;
+}
+function showMapping(){
+  const map=autoMap();
+  const headerOpts=sel=>'<option value="-1">（略過）</option>'+importState.headers.map((h,i)=>'<option value="'+i+'"'+(i===sel?" selected":"")+'>'+esc(h||("欄"+(i+1)))+'</option>').join("");
+  const rows=IMP_TARGETS.map(t=>'<tr><td class="k">'+t.label+(t.req?' <span style="color:var(--danger)">*</span>':'')+'</td><td><select data-key="'+t.key+'">'+headerOpts(map[t.key])+'</select></td></tr>').join("");
+  const dataRows=importState.rows.length-1;
+  const dest=importState.isNew?('新班級「'+esc(importState.newName)+'」'):esc((cohorts.find(c=>c.id===importState.targetCohort)||{}).name||"");
+  document.getElementById("impBody").innerHTML=
+    '<p style="font-size:13px;margin:0 0 10px">偵測到 <b>'+importState.headers.length+'</b> 欄、<b>'+dataRows+'</b> 筆資料，將匯入至 <b>'+dest+'</b>。請確認欄位對應：</p>'+
+    '<table class="maptbl">'+rows+'</table>'+
+    '<label class="imp-opt"><input type="checkbox" id="impSkipDup" checked> 略過名單中已存在的同名學員</label>'+
+    '<label class="imp-opt"><input type="checkbox" id="impSkipEmpty" checked> 略過姓名空白的列</label>';
+  document.getElementById("impFoot").innerHTML='<button class="btn ghost" onclick="openImport()">← 重選檔案</button><button class="btn primary" onclick="runImport()">確認匯入</button>';
+}
+function classifyImp(t){ t=(t||"").trim(); if(!t)return"未填"; if(t.startsWith("有"))return"有"; if(t.startsWith("無")||t.startsWith("沒有"))return"無"; if(t.indexOf("有")>=0&&t.indexOf("沒有")<0&&t.indexOf("無")<0)return"有"; return"未填"; }
+function parseTagCell(t){ t=(t||"").trim(); if(!t)return[]; const toks=t.split(/[\/、,，\s]+/).filter(Boolean); const ids=[];
+  toks.forEach(tok=>{ if(tok.toLowerCase()==="v"){const pr=tags.find(x=>x.name==="主力輔導");if(pr&&!ids.includes(pr.id))ids.push(pr.id);return;} const m=tags.find(x=>x.name===tok); if(m&&!ids.includes(m.id))ids.push(m.id); });
+  return ids; }
+async function runImport(){
+  const sel={}; document.querySelectorAll("#impBody select[data-key]").forEach(s=>sel[s.dataset.key]=+s.value);
+  if(sel.name<0){ toast("請指定「姓名」對應的欄位"); return; }
+  const skipDup=document.getElementById("impSkipDup").checked, skipEmpty=document.getElementById("impSkipEmpty").checked;
+  let targetId, targetList, switchTo=false;
+  if(importState.isNew){
+    targetId="c"+Date.now(); cohorts.push({id:targetId,name:importState.newName});
+    await sSet("students:"+targetId,JSON.stringify([])); await saveCohorts(); targetList=[]; switchTo=true;
+  } else { targetId=importState.targetCohort; targetList = targetId===activeCohort ? students : await loadStudents(targetId); }
+  const existing=new Set(targetList.map(s=>(''+s.name).trim()));
+  let maxId=targetList.reduce((m,s)=>Math.max(m,s.id||0),0);
+  const cell=(row,i)=> i<0?"":(''+(row[i]==null?"":row[i])).trim();
+  let added=0,skipped=0;
+  for(let r=1;r<importState.rows.length;r++){
+    const row=importState.rows[r]; if(!row)continue;
+    const name=cell(row,sel.name);
+    if(!name){ skipped++; continue; }
+    if(skipDup&&existing.has(name)){ skipped++; continue; }
+    const ageRaw=cell(row,sel.ageRaw), readRaw=cell(row,sel.readinessRaw);
+    targetList.push({id:++maxId,name,currentCity:cell(row,sel.currentCity),desiredCity:cell(row,sel.desiredCity),price:cell(row,sel.price),downPayment:cell(row,sel.downPayment),decisionMaker:cell(row,sel.decisionMaker),hasProperty:classifyImp(cell(row,sel.hasProperty)),hasMortgage:classifyImp(cell(row,sel.hasMortgage)),ageRaw,age:parseNum(ageRaw),job:cell(row,sel.job),income:cell(row,sel.income),readinessRaw:readRaw,readiness:parseNum(readRaw),action:cell(row,sel.action),notes:cell(row,sel.notes),tagIds:parseTagCell(cell(row,sel.tagsCol)),properties:[],progressNote:"",privateCircle:cell(row,sel.privateCircle),englishName:cell(row,sel.englishName)});
+    existing.add(name); added++;
+  }
+  if(switchTo){ activeCohort=targetId; students=targetList; await sSet("activeCohort",targetId); await saveStudents(); renderCohorts(); }
+  else if(targetId===activeCohort){ students=targetList; await saveStudents(); }
+  else { await sSet("students:"+targetId,JSON.stringify(targetList)); }
+  closeImport(); buildFlagChips(); render();
+  toast("已匯入 "+added+" 筆"+(skipped?("，略過 "+skipped+" 筆"):""));
+}
+
+/* backup / restore full data */
+async function backupAll(){
+  const data={version:1,exportedAt:new Date().toISOString(),cohorts,activeCohort,tags,students:{}};
+  for(const c of cohorts){ data.students[c.id]= c.id===activeCohort ? students : await loadStudents(c.id); }
+  const blob=new Blob([JSON.stringify(data,null,1)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="陪跑進度備份_"+new Date().toISOString().slice(0,10)+".json"; a.click();
+  toast("已下載備份檔（含所有班級）");
+}
+function restorePicked(inp){
+  const f=inp.files[0]; if(!f)return; const r=new FileReader();
+  r.onload=async e=>{
+    try{
+      const d=JSON.parse(e.target.result);
+      if(!d.cohorts||!d.students){ toast("備份檔格式不符"); return; }
+      if(!confirm("還原會以備份檔覆蓋目前所有班級、學員與標籤，確定嗎？")){ inp.value=""; return; }
+      cohorts=d.cohorts;
+      if(Array.isArray(d.tags)&&d.tags.length) tags=d.tags;
+      activeCohort=(d.activeCohort&&cohorts.find(c=>c.id===d.activeCohort))?d.activeCohort:(cohorts[0]&&cohorts[0].id);
+      for(const c of cohorts){ await sSet("students:"+c.id, JSON.stringify(d.students[c.id]||[])); }
+      await saveCohorts(); await saveTags();
+      students=await loadStudents(activeCohort); selected=new Set();
+      buildFlagChips(); renderCohorts(); render(); toast("已還原備份資料");
+    }catch(err){ toast("還原失敗："+err.message); }
+    inp.value="";
+  };
+  r.readAsText(f,"utf-8");
+}
+
+function esc(s){return(''+(s==null?"":s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+let toastT; function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),2200);}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeDrawer();closeAdd();closeCohort();closeTagMgr();closePropModal();closeImport();closeCohortMgr();closeBulkTodo();}});
+window.addEventListener("resize",()=>{ if(typeof fitTable==="function") fitTable(); });
+
+boot();
+</script>
+</body>
+</html>
