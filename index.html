@@ -1016,7 +1016,7 @@ function collectDrawerFields(s){
   const set=(id,k)=>{const v=g(id); if(v!==undefined)s[k]=v;};
   set("dProgress","progressNote"); set("dPhone","phone"); set("dLine","lineId"); set("dEmail","email"); set("dCourse","courseRecord"); set("dStatus","status"); set("dHasProp","hasProperty"); set("dHasMort","hasMortgage"); set("dPrivate","privateCircle"); set("dEnglish","englishName");
   set("dDesired","desiredCity"); set("dPrice","price"); set("dDown","downPayment"); set("dDecision","decisionMaker");
-  set("dCurrent","currentCity"); set("dIncome","income"); set("dAction","action"); set("dNotes","notes");
+  set("dCurrent","currentCity"); set("dIncome","income"); set("dAction","action"); set("dNotes","notes"); set("dRegistrant","registrant");
   const nm=g("dName2"); if(nm!==undefined&&nm.trim()) s.name=nm.trim();
   const rv=g("dReadiness"); if(rv!==undefined){ s.readinessRaw=rv; s.readiness=parseNum(rv); }
   set("dJob","job");
@@ -1393,6 +1393,7 @@ function openDrawer(id){
     '<div class="track"><h4>學員資料</h4>'+
       '<div class="grid2"><div><div class="miniL">職業</div><input class="din" id="dJob" value="'+esc(s.job||"")+'"></div>'+
       '<div><div class="miniL">年齡</div><input class="din" id="dAge" value="'+esc(s.ageRaw||(s.age!=null?String(s.age):""))+'"></div></div>'+
+      '<div class="miniL" style="margin-top:8px">目前居住城市／區域</div><input class="din" id="dCurrent" value="'+esc(s.currentCity||"")+'">'+
       '<div class="miniL" style="margin-top:8px">希望購入城市／區域</div><input class="din" id="dDesired" value="'+esc(s.desiredCity||"")+'">'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">適合總價</div><input class="din" id="dPrice" value="'+esc(s.price||"")+'"></div>'+
       '<div><div class="miniL">可運用自備款</div><input class="din" id="dDown" value="'+esc(s.downPayment||"")+'"></div></div>'+
@@ -1400,7 +1401,7 @@ function openDrawer(id){
       '<div><div class="miniL">名下房貸</div>'+optSelect("dHasMort",MORT_OPTIONS,s.hasMortgage||"")+'</div></div>'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">共同決策者</div><input class="din" id="dDecision" value="'+esc(s.decisionMaker||"")+'"></div>'+
       '<div><div class="miniL">準備度</div><input class="din" id="dReadiness" value="'+esc(s.readinessRaw||"")+'"></div></div>'+
-      '<div class="miniL" style="margin-top:8px">目前居住城市／區域</div><input class="din" id="dCurrent" value="'+esc(s.currentCity||"")+'">'+
+      '<div class="miniL" style="margin-top:8px">登記人（買誰的名字）</div><input class="din" id="dRegistrant" value="'+esc(s.registrant||"")+'">'+
       '<div class="miniL" style="margin-top:8px">收入</div><input class="din" id="dIncome" value="'+esc(s.income||"")+'">'+
       '<div class="miniL" style="margin-top:8px">下一步行動</div><textarea class="din agrow" id="dAction" style="min-height:52px" oninput="autoGrow(this)">'+esc(s.action||"")+'</textarea>'+
       '<div class="miniL" style="margin-top:8px">備註</div><textarea class="din agrow" id="dNotes" style="min-height:70px" oninput="autoGrow(this)">'+esc(s.notes||"")+'</textarea>'+
