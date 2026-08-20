@@ -1395,10 +1395,10 @@ function openDrawer(id){
       '<div><div class="miniL">年齡</div><input class="din" id="dAge" value="'+esc(s.ageRaw||(s.age!=null?String(s.age):""))+'"></div></div>'+
       '<div class="miniL" style="margin-top:8px">目前居住城市／區域</div><input class="din" id="dCurrent" value="'+esc(s.currentCity||"")+'">'+
       '<div class="miniL" style="margin-top:8px">希望購入城市／區域</div><input class="din" id="dDesired" value="'+esc(s.desiredCity||"")+'">'+
-      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">適合總價</div><input class="din" id="dPrice" value="'+esc(s.price||"")+'"></div>'+
-      '<div><div class="miniL">可運用自備款</div><input class="din" id="dDown" value="'+esc(s.downPayment||"")+'"></div></div>'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">名下房產</div>'+optSelect("dHasProp",PROP_OPTIONS,s.hasProperty||"")+'</div>'+
       '<div><div class="miniL">名下房貸</div>'+optSelect("dHasMort",MORT_OPTIONS,s.hasMortgage||"")+'</div></div>'+
+      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">適合總價</div><input class="din" id="dPrice" value="'+esc(s.price||"")+'"></div>'+
+      '<div><div class="miniL">可運用自備款</div><input class="din" id="dDown" value="'+esc(s.downPayment||"")+'"></div></div>'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">共同決策者</div><input class="din" id="dDecision" value="'+esc(s.decisionMaker||"")+'"></div>'+
       '<div><div class="miniL">準備度</div><input class="din" id="dReadiness" value="'+esc(s.readinessRaw||"")+'"></div></div>'+
       '<div class="miniL" style="margin-top:8px">登記人（買誰的名字）</div><input class="din" id="dRegistrant" value="'+esc(s.registrant||"")+'">'+
