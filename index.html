@@ -126,6 +126,20 @@
   .barrow .bt{flex:1;height:20px;background:var(--line-soft);border-radius:6px;overflow:hidden}
   .barrow .bt>i{display:block;height:100%;background:var(--brand);border-radius:6px;transition:width .5s}
   .barrow .bv{width:60px;font-weight:700;font-size:12.5px}
+  .rdash{margin-bottom:18px}
+  .pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-bottom:16px}
+  .pipecol{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+  .pipecol .ph{padding:10px 14px;color:#fff;font-weight:800;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .pipecol .ph .pc{font-size:20px;line-height:1}
+  .pipecol .pb{padding:8px 14px 12px}
+  .piperow{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:4px 0}
+  .piperow .pk{display:flex;align-items:center;gap:7px;color:var(--muted);min-width:0}
+  .piperow .pk .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .piperow .pn{font-weight:700;color:var(--ink)}
+  .piperow.zero{opacity:.38}
+  .dleg{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:5px 0}
+  .dleg .pk{display:flex;align-items:center;gap:8px}
+  .dleg .pk .dot{width:11px;height:11px;border-radius:50%}
   .hist{display:flex;align-items:flex-end;gap:5px;height:150px;padding-top:8px}
   .hist .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
   .hist .bar{width:100%;border-radius:5px 5px 0 0;background:linear-gradient(180deg,#1E6B60,#12433D);min-height:2px;transition:height .5s;position:relative}
@@ -396,6 +410,7 @@
 
   <!-- RENO VIEW -->
   <div id="renoView" style="display:none">
+    <div id="renoDash"></div>
     <div class="toolbar" style="margin-top:0">
       <div class="fgrp"><label style="font-size:11px;font-weight:700;color:var(--muted)">改建階段</label>
         <select id="fStage" onchange="renderReno()"><option value="all">全部階段</option></select></div>
@@ -580,12 +595,18 @@ const PROP_STATUS = [
   {key:"pp_xj",label:"興建中",color:"#417658",grp:"g"},
   {key:"pp_dyw",label:"待驗屋",color:"#3B6F52",grp:"g"},
   {key:"pp_yyw",label:"已驗屋",color:"#35674C",grp:"g"},
-  {key:"pp_jw_g",label:"已交屋",color:"#2F6046",grp:"g"},
-  {key:"pp_dcs",label:"待出售",color:"#28583F",grp:"g"},
-  {key:"pp_czs",label:"出售中",color:"#225139",grp:"g"},
-  {key:"pp_cs",label:"已出售",color:"#1C4933",grp:"g"},
-  {key:"pp_zxz",label:"裝修中",color:"#16422C",grp:"g"},
-  {key:"pp_zyg",label:"自用中",color:"#103A26",grp:"g"}
+  {key:"pp_jw_g",label:"已交屋",color:"#2F6046",grp:"dg"},
+  {key:"pp_dcs",label:"待出售",color:"#28583F",grp:"dg"},
+  {key:"pp_czs",label:"出售中",color:"#225139",grp:"dg"},
+  {key:"pp_cs",label:"已出售",color:"#1C4933",grp:"dg"},
+  {key:"pp_zxz",label:"裝修中",color:"#16422C",grp:"dg"},
+  {key:"pp_zyg",label:"自用中",color:"#103A26",grp:"dg"}
+];
+const STATUS_GROUPS = [
+  {key:"r",  name:"紅 · 簽約/貸款/交屋",       color:"#C0392B"},
+  {key:"y",  name:"黃 · 裝潢/出租",            color:"#C08A10"},
+  {key:"g",  name:"綠 · 陌開～改建",           color:"#3D9669"},
+  {key:"dg", name:"深綠 · 交屋～出售/自用",     color:"#164D32"}
 ];
 const RENO_ROLES = [
   {v:"純紀錄",color:"#7E93A6"},
@@ -963,9 +984,9 @@ function studentStatusSelect(id,cur){
   return '<select class="din" id="'+id+'"><option value="">未設定</option>'+grp('紅 · 學習～交屋',r)+grp('黃 · 裝潢/出租',y)+grp('綠 · 陌開～出售',g)+'</select>';
 }
 function propStatusSelect(id,cur){
-  const grp=(n,a)=>'<optgroup label="'+n+'">'+a.map(o=>'<option value="'+o.key+'"'+(o.key===cur?' selected':'')+'>'+o.label+'</option>').join('')+'</optgroup>';
-  const r=PROP_STATUS.filter(o=>o.grp==='r'),y=PROP_STATUS.filter(o=>o.grp==='y'),g=PROP_STATUS.filter(o=>o.grp==='g');
-  return '<select class="din" id="'+id+'"><option value="">未設定</option>'+grp('紅 · 簽約/貸款/交屋',r)+grp('黃 · 裝潢/出租',y)+grp('綠 · 陌開～出售',g)+'</select>';
+  const grp=(n,a)=>a.length?'<optgroup label="'+n+'">'+a.map(o=>'<option value="'+o.key+'"'+(o.key===cur?' selected':'')+'>'+o.label+'</option>').join('')+'</optgroup>':'';
+  const groups=STATUS_GROUPS.map(G=>grp(G.name,PROP_STATUS.filter(o=>o.grp===G.key))).join('');
+  return '<select class="din" id="'+id+'"><option value="">未設定</option>'+groups+'</select>';
 }
 function renderPropCell(s){
   const ps=(s.properties||[]);
@@ -1277,7 +1298,44 @@ function consultListHtml(s){
   if(!a.length) return '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">尚無諮詢紀錄</div>';
   return a.map(c=>{const f=c.form==="其他"?(c.formOther||"其他"):(c.form||"");return '<div class="consult"><div class="ch"><span>'+esc(c.date||"")+'</span><span>'+esc(f)+'</span></div><div class="cc">'+esc(c.content||"")+'</div></div>';}).join("");
 }
+function kpiColor(n,l,c){return '<div class="kpi"><div class="n" style="color:'+c+'">'+n+'</div><div class="l">'+esc(l)+'</div></div>';}
+function donutSvg(segs,total){
+  const r=54,C=2*Math.PI*r,cx=70,cy=70; let off=0;
+  const arcs=segs.filter(s=>s.value>0).map(s=>{
+    const len=(total?s.value/total:0)*C;
+    const el='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+s.color+'" stroke-width="20" stroke-dasharray="'+len+' '+(C-len)+'" stroke-dashoffset="'+(-off)+'" transform="rotate(-90 '+cx+' '+cy+')"></circle>';
+    off+=len; return el;
+  }).join('');
+  const legend=segs.map(s=>{const pct=total?Math.round(s.value/total*100):0;return '<div class="dleg"><span class="pk"><span class="dot" style="background:'+s.color+'"></span>'+esc(s.label)+'</span><span style="font-weight:700">'+s.value+' <span style="color:var(--muted);font-weight:600">('+pct+'%)</span></span></div>';}).join('');
+  return '<div style="display:flex;gap:22px;align-items:center;flex-wrap:wrap">'+
+    '<svg width="140" height="140" viewBox="0 0 140 140" style="flex-shrink:0">'+(arcs||'<circle cx="70" cy="70" r="54" fill="none" stroke="var(--line-soft)" stroke-width="20"></circle>')+
+    '<text x="70" y="65" text-anchor="middle" font-size="12.5" fill="var(--muted)">總計</text>'+
+    '<text x="70" y="90" text-anchor="middle" font-size="26" font-weight="800" fill="var(--ink)">'+total+'</text></svg>'+
+    '<div style="flex:1;min-width:180px">'+legend+'</div></div>';
+}
+function renderRenoDash(){
+  const el=document.getElementById("renoDash"); if(!el) return;
+  const all=allProperties(); const total=all.length;
+  const gc={r:0,y:0,g:0,dg:0}, statusCount={}; let sumPrice=0;
+  all.forEach(({p})=>{
+    const o=psById(p.status);
+    if(o){ gc[o.grp]=(gc[o.grp]||0)+1; statusCount[o.key]=(statusCount[o.key]||0)+1; }
+    const n=pnum(p.price); if(n) sumPrice+=n;
+  });
+  const priceLabel = sumPrice>=10000 ? (sumPrice/10000).toFixed(2)+' 億' : (sumPrice? Math.round(sumPrice)+' 萬' : '—');
+  const kpis='<div class="kpis">'+kpi(total,'物件總數')+
+    STATUS_GROUPS.map(G=>kpiColor(gc[G.key]||0, G.name.split(' · ')[0]+' 群', G.color)).join('')+
+    kpi(priceLabel,'成交總價加總（約估）')+'</div>';
+  const pipe='<div class="pipe">'+STATUS_GROUPS.map(G=>{
+    const rows=PROP_STATUS.filter(o=>o.grp===G.key).map(o=>{const c=statusCount[o.key]||0;
+      return '<div class="piperow'+(c?'':' zero')+'"><span class="pk"><span class="dot" style="background:'+o.color+'"></span>'+esc(o.label)+'</span><span class="pn">'+c+'</span></div>';}).join('');
+    return '<div class="pipecol"><div class="ph" style="background:'+G.color+'"><span>'+esc(G.name)+'</span><span class="pc">'+(gc[G.key]||0)+'</span></div><div class="pb">'+rows+'</div></div>';
+  }).join('')+'</div>';
+  const donut=donutSvg(STATUS_GROUPS.map(G=>({label:G.name.split(' · ')[0],value:gc[G.key]||0,color:G.color})),total);
+  el.innerHTML='<div class="rdash">'+kpis+pipe+'<div class="statgrid"><div class="panel"><h3>物件階段分佈</h3>'+donut+'</div></div></div>';
+}
 function renderReno(){
+  renderRenoDash();
   const stageF=document.getElementById("fStage").value;
   const roleEl=document.getElementById("fRole"); const roleF=roleEl?roleEl.value:"all";
   let items=allProperties();
