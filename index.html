@@ -1658,18 +1658,18 @@ function openProperty(sid,pid){
       '<div class="grid2" style="margin-top:6px">'+pIn("銀行","l1Bank",l1.bank)+pIn("金額","l1Amt",l1.amount,unitAttr("萬"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("貸款年限","l1Years",l1.years,unitAttr("年"))+pIn("利率","l1Rate",l1.rate,unitAttr("%"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("寬限期起","l1GraceS",l1.graceStart,'placeholder="2026/03" oninput="recalcProp()"')+pIn("寬限期迄","l1GraceE",l1.graceEnd,'placeholder="2029/03" oninput="recalcProp()"')+'</div>'+
-      '<div class="grid2" style="margin-top:8px">'+pIn("利息／月","l1Int",l1.interestPM,'oninput="recalcProp()"')+pIn("本息／月","l1PI",l1.piPM,'oninput="recalcProp()"')+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("利息／月","l1Int",l1.interestPM,unitAttr("萬")+' oninput="recalcProp()"')+pIn("本息／月","l1PI",l1.piPM,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
       '<div class="miniL" style="font-weight:800;color:var(--ink);margin-top:14px">科目04（週轉金）</div>'+
       '<div class="grid2" style="margin-top:6px">'+pIn("銀行","l4Bank",l4.bank)+pIn("金額","l4Amt",l4.amount,unitAttr("萬"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("貸款年限","l4Years",l4.years,unitAttr("年"))+pIn("利率","l4Rate",l4.rate,unitAttr("%"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("寬限期起","l4GraceS",l4.graceStart,'placeholder="2026/03" oninput="recalcProp()"')+pIn("寬限期迄","l4GraceE",l4.graceEnd,'placeholder="2029/03" oninput="recalcProp()"')+'</div>'+
-      '<div class="grid2" style="margin-top:8px">'+pIn("利息／月","l4Int",l4.interestPM,'oninput="recalcProp()"')+pIn("本息／月","l4PI",l4.piPM,'oninput="recalcProp()"')+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("利息／月","l4Int",l4.interestPM,unitAttr("萬")+' oninput="recalcProp()"')+pIn("本息／月","l4PI",l4.piPM,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
       '<div class="pcalc"><span>每月貸款支出</span><b id="cMonthlyLoan">0</b></div>'+
       '<div class="psub" id="cLoanMode">（依今天是否在寬限期，自動用利息或本息加總）</div>'+
     '</div>'+
     '<div class="track"><h4>租金・現金流</h4>'+
       '<details class="pdet"><summary>每月淨租金收入（<span id="cNetRent">0</span>）</summary><div class="pdbody">'+
-        '<div class="grid2">'+pIn("總收租金","rRentGross",rt.gross,'oninput="recalcProp()"')+pIn("代管費","rRentMgmt",rt.mgmt,'oninput="recalcProp()"')+'</div>'+
+        '<div class="grid2">'+pIn("總收租金","rRentGross",rt.gross,unitAttr("萬")+' oninput="recalcProp()"')+pIn("代管費","rRentMgmt",rt.mgmt,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
       '</div></details>'+
       '<div class="pcalc"><span>每月淨現金流（淨租金－每月貸款支出）</span><b id="cCashflow">0</b></div>'+
     '</div>'+
