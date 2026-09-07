@@ -1650,8 +1650,8 @@ function openProperty(sid,pid){
         '<div class="grid2" style="margin-top:8px">'+pIn("登記規費","tReg",tx.reg,unitAttr("萬")+' oninput="recalcProp()"')+pIn("謄本費","tTrans",tx.trans,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
       '</div></details>'+
       '<div style="margin-top:10px">'+pIn("總自備款","rSelfFund",p.selfFund,unitAttr("萬"))+'</div>'+
-      '<div class="grid2" style="margin-top:8px">'+pIn("出資金額","rInvestAmt",p.investAmt,unitAttr("萬"))+pIn("比例","rInvestRatio",p.investRatio,unitAttr("%"))+'</div>'+
-      '<div style="margin-top:8px">'+pIn("持股比例","rShareRatio",p.shareRatio,'placeholder="例：50%"')+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("出資金額","rInvestAmt",p.investAmt,unitAttr("萬"))+pIn("出資比例","rInvestRatio",p.investRatio,unitAttr("%"))+'</div>'+
+      '<div style="margin-top:8px">'+pIn("持股比例","rShareRatio",p.shareRatio,unitAttr("%"))+'</div>'+
     '</div>'+
     '<div class="track"><h4>貸款</h4>'+
       '<div class="miniL" style="font-weight:800;color:var(--ink)">科目01（購屋貸款）</div>'+
