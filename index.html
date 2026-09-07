@@ -485,17 +485,17 @@
     </div>
     <div class="frow"><label>物件地址 *</label><input type="text" id="pAddr" placeholder="例如：台北市中山區林森北路 100 號"></div>
     <div class="grid2">
-      <div class="frow"><label>基地／坪數</label><input type="text" id="pArea" placeholder="例如：土地 30 坪"></div>
-      <div class="frow"><label>成交總價</label><input type="text" id="pPrice" placeholder="例如：2000 萬"></div>
+      <div class="frow"><label>基地／坪數</label><input type="text" id="pArea" data-unit="坪" placeholder="輸入數字（單位：坪）"></div>
+      <div class="frow"><label>成交總價</label><input type="text" id="pPrice" data-unit="萬" placeholder="輸入數字（單位：萬）"></div>
     </div>
     <div class="frow"><label>買到日期</label><input type="text" id="pDate" placeholder="例如：2026/03"></div>
     <div class="grid2">
-      <div class="frow"><label>物件權狀坪數</label><input type="text" id="pDeed" placeholder="例如：28 坪"></div>
+      <div class="frow"><label>物件權狀坪數</label><input type="text" id="pDeed" data-unit="坪" placeholder="輸入數字（單位：坪）"></div>
       <div class="frow"><label>土地使用分區</label><input type="text" id="pZoning" placeholder="例如：住三"></div>
     </div>
     <div class="grid2">
-      <div class="frow"><label>土地持份坪數-建地</label><input type="text" id="pLandBuild" placeholder="例如：12 坪"></div>
-      <div class="frow"><label>土地持份坪數-道路用地</label><input type="text" id="pLandRoad" placeholder="例如：2 坪"></div>
+      <div class="frow"><label>土地持份坪數-建地</label><input type="text" id="pLandBuild" data-unit="坪" placeholder="輸入數字（單位：坪）"></div>
+      <div class="frow"><label>土地持份坪數-道路用地</label><input type="text" id="pLandRoad" data-unit="坪" placeholder="輸入數字（單位：坪）"></div>
     </div>
   </div>
   <div class="mf"><button class="btn ghost" onclick="closePropModal()">取消</button><button class="btn primary" onclick="submitProp()">儲存</button></div>
@@ -1568,6 +1568,7 @@ async function submitProp(){
   if(propEdit.fromReno){ sid=document.getElementById("pOwner").value; if(!sid){toast("請選擇屋主學員");return;} }
   const s=students.find(x=>String(x.id)===String(sid)); if(!s){toast("找不到對應學員");return;}
   s.properties=s.properties||[];
+  normalizeUnitFields(document.getElementById("propModal"));
   const gv=id=>{const e=document.getElementById(id);return e?e.value.trim():"";};
   const rec={id:"p"+Date.now(),address:addr,area:gv("pArea"),price:gv("pPrice"),boughtDate:gv("pDate"),stage:0,renovNote:"",
     old:{deed:gv("pDeed"),zoning:gv("pZoning"),landBuild:gv("pLandBuild"),landRoad:gv("pLandRoad")}};
@@ -1580,6 +1581,20 @@ async function submitProp(){
 /* renovation property drawer */
 function gotoReno(sid,pid){ closeDrawer(); setView("reno"); setTimeout(()=>openProperty(sid,pid),260); }
 function pIn(label,id,val,extra){return '<div><div class="miniL">'+label+'</div><input class="din" id="'+id+'" value="'+esc(val||"")+'" '+(extra||"")+'></div>';}
+function unitAttr(u){return 'data-unit="'+u+'" placeholder="輸入數字（單位：'+u+'）"';}
+function normalizeUnitFields(root){
+  (root||document).querySelectorAll('[data-unit]').forEach(el=>{
+    const v=(el.value||"").trim();
+    if(v && /^[\d,]+(\.\d+)?$/.test(v)) el.value=v+el.dataset.unit;
+  });
+}
+document.addEventListener("focusout",e=>{
+  const el=e.target;
+  if(el&&el.dataset&&el.dataset.unit){
+    const v=(el.value||"").trim();
+    if(v && /^[\d,]+(\.\d+)?$/.test(v)) el.value=v+el.dataset.unit;
+  }
+});
 function pTA(label,id,val,ph){return '<div class="miniL" style="margin-top:8px">'+label+'</div><textarea class="din" id="'+id+'" style="min-height:46px" placeholder="'+(ph||"")+'">'+esc(val||"")+'</textarea>';}
 function pWithin(a,b){ if(!a||!b)return false; const now=new Date().toISOString().slice(0,7); const n=x=>(''+x).replace(/\//g,'-').slice(0,7); return n(a)<=now&&now<=n(b); }
 function fmtMoney(v){ v=Math.round(v||0); return v.toLocaleString("en-US"); }
@@ -1621,31 +1636,31 @@ function openProperty(sid,pid){
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">簽約日期</div><input class="din" id="rContract" value="'+esc(p.contractDate||"")+'" placeholder="2026/03"></div>'+
       '<div><div class="miniL">交屋日期</div><input class="din" id="rHandover" value="'+esc(p.handoverDate||"")+'" placeholder="2026/06"></div></div>'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">仲介</div><input class="din" id="rAgent" value="'+esc(p.agent||"")+'"></div>'+
-      '<div><div class="miniL">成交總價</div><input class="din" id="rPrice" value="'+esc(p.price||"")+'"></div></div>'+
-      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">基地／坪數</div><input class="din" id="rArea" value="'+esc(p.area||"")+'"></div>'+
+      '<div><div class="miniL">成交總價</div><input class="din" id="rPrice" value="'+esc(p.price||"")+'" '+unitAttr("萬")+'></div></div>'+
+      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">基地／坪數</div><input class="din" id="rArea" value="'+esc(p.area||"")+'" '+unitAttr("坪")+'></div>'+
       '<div><div class="miniL">買到日期</div><input class="din" id="rDate" value="'+esc(p.boughtDate||"")+'"></div></div>'+
       '<div class="miniL" style="margin-top:8px">登記人</div><input class="din" id="rRegistrant" value="'+esc(p.registrant||"")+'">'+
     '</div>'+
     '<div class="track"><h4>改建進度備註</h4><textarea class="din" id="rNote" style="min-height:60px" placeholder="整合戶數、送件進度、建商、權變比例、卡關點…">'+esc(p.renovNote||"")+'</textarea></div>'+
         '<div class="track"><h4>財務・成本</h4>'+
-      pTA("裝潢","rReno",p.reno,"裝潢費用").replace("min-height:46px","min-height:0").replace("<textarea","<input").replace("></textarea>","")+
+      pTA("裝潢","rReno",p.reno,"裝潢費用").replace("min-height:46px","min-height:0").replace("<textarea","<input").replace("></textarea>","").replace('id="rReno"','id="rReno" data-unit="萬"')+
       '<details class="pdet"><summary>稅費（合計 <span id="cTaxSum">0</span>）</summary><div class="pdbody">'+
-        '<div class="grid2">'+pIn("仲介費","tFeeAgent",tx.feeAgent,'oninput="recalcProp()"')+pIn("契稅","tDeed",tx.deed,'oninput="recalcProp()"')+'</div>'+
-        '<div class="grid2" style="margin-top:8px">'+pIn("印花稅","tStamp",tx.stamp,'oninput="recalcProp()"')+pIn("代書費","tScriv",tx.scriv,'oninput="recalcProp()"')+'</div>'+
-        '<div class="grid2" style="margin-top:8px">'+pIn("登記規費","tReg",tx.reg,'oninput="recalcProp()"')+pIn("謄本費","tTrans",tx.trans,'oninput="recalcProp()"')+'</div>'+
+        '<div class="grid2">'+pIn("仲介費","tFeeAgent",tx.feeAgent,unitAttr("萬")+' oninput="recalcProp()"')+pIn("契稅","tDeed",tx.deed,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
+        '<div class="grid2" style="margin-top:8px">'+pIn("印花稅","tStamp",tx.stamp,unitAttr("萬")+' oninput="recalcProp()"')+pIn("代書費","tScriv",tx.scriv,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
+        '<div class="grid2" style="margin-top:8px">'+pIn("登記規費","tReg",tx.reg,unitAttr("萬")+' oninput="recalcProp()"')+pIn("謄本費","tTrans",tx.trans,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
       '</div></details>'+
       '<div class="pcalc"><span>總成本（總價＋稅費＋裝潢）</span><b id="cTotalCost">0</b></div>'+
-      '<div class="grid2" style="margin-top:10px">'+pIn("出資金額","rInvestAmt",p.investAmt)+pIn("出資比例","rInvestRatio",p.investRatio,'placeholder="例：50%"')+'</div>'+
+      '<div class="grid2" style="margin-top:10px">'+pIn("出資金額","rInvestAmt",p.investAmt,unitAttr("萬"))+pIn("出資比例","rInvestRatio",p.investRatio,'placeholder="例：50%"')+'</div>'+
       '<div style="margin-top:8px">'+pIn("持股比例","rShareRatio",p.shareRatio,'placeholder="例：50%"')+'</div>'+
     '</div>'+
     '<div class="track"><h4>貸款</h4>'+
       '<div class="miniL" style="font-weight:800;color:var(--ink)">科目01（購屋貸款）</div>'+
-      '<div class="grid2" style="margin-top:6px">'+pIn("銀行","l1Bank",l1.bank)+pIn("金額","l1Amt",l1.amount)+'</div>'+
+      '<div class="grid2" style="margin-top:6px">'+pIn("銀行","l1Bank",l1.bank)+pIn("金額","l1Amt",l1.amount,unitAttr("萬"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("貸款年限","l1Years",l1.years)+pIn("利率","l1Rate",l1.rate,'placeholder="例：2.1%"')+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("寬限期起","l1GraceS",l1.graceStart,'placeholder="2026/03" oninput="recalcProp()"')+pIn("寬限期迄","l1GraceE",l1.graceEnd,'placeholder="2029/03" oninput="recalcProp()"')+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("利息／月","l1Int",l1.interestPM,'oninput="recalcProp()"')+pIn("本息／月","l1PI",l1.piPM,'oninput="recalcProp()"')+'</div>'+
       '<div class="miniL" style="font-weight:800;color:var(--ink);margin-top:14px">科目04（週轉金）</div>'+
-      '<div class="grid2" style="margin-top:6px">'+pIn("銀行","l4Bank",l4.bank)+pIn("金額","l4Amt",l4.amount)+'</div>'+
+      '<div class="grid2" style="margin-top:6px">'+pIn("銀行","l4Bank",l4.bank)+pIn("金額","l4Amt",l4.amount,unitAttr("萬"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("貸款年限","l4Years",l4.years)+pIn("利率","l4Rate",l4.rate,'placeholder="例：2.5%"')+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("寬限期起","l4GraceS",l4.graceStart,'placeholder="2026/03" oninput="recalcProp()"')+pIn("寬限期迄","l4GraceE",l4.graceEnd,'placeholder="2029/03" oninput="recalcProp()"')+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("利息／月","l4Int",l4.interestPM,'oninput="recalcProp()"')+pIn("本息／月","l4PI",l4.piPM,'oninput="recalcProp()"')+'</div>'+
@@ -1669,17 +1684,17 @@ function openProperty(sid,pid){
       '<div class="grid2" style="margin-top:8px">'+pIn("開發商","rDeveloper",p.developer)+pIn("建商","rBuilder",p.builder)+'</div>'+
     '</div>'+
     '<div class="track"><h4>舊屋</h4>'+
-      '<div class="grid2">'+pIn("主建物","oMain",ob.main)+pIn("附屬建物","oAttached",ob.attached)+'</div>'+
-      '<div class="grid2" style="margin-top:8px">'+pIn("公設","oCommon",ob.common)+pIn("權狀坪數","oDeed",ob.deed)+'</div>'+
-      '<div class="grid2" style="margin-top:8px">'+pIn("土地持份坪數-建地","oLandBuild",ob.landBuild)+pIn("土地使用分區","oZoning",ob.zoning)+'</div>'+
-      '<div class="grid2" style="margin-top:8px">'+pIn("容積率","oFar",ob.far)+pIn("土地持份坪數-道路用地","oLandRoad",ob.landRoad)+'</div>'+
+      '<div class="grid2">'+pIn("主建物","oMain",ob.main,unitAttr("坪"))+pIn("附屬建物","oAttached",ob.attached,unitAttr("坪"))+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("公設","oCommon",ob.common,unitAttr("坪"))+pIn("權狀坪數","oDeed",ob.deed,unitAttr("坪"))+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("土地持份坪數-建地","oLandBuild",ob.landBuild,unitAttr("坪"))+pIn("土地使用分區","oZoning",ob.zoning)+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("容積率","oFar",ob.far)+pIn("土地持份坪數-道路用地","oLandRoad",ob.landRoad,unitAttr("坪"))+'</div>'+
     '</div>'+
     '<div class="track"><h4>預估分回</h4>'+
-      '<div>'+pIn("預估分回室內坪數","rEstIndoor",p.estIndoor)+'</div>'+
+      '<div>'+pIn("預估分回室內坪數","rEstIndoor",p.estIndoor,unitAttr("坪"))+'</div>'+
       '<details class="pdet"><summary>室內坪數計算公式</summary><div class="pdbody"><textarea class="din" id="rEstIndoorNote" style="min-height:56px" placeholder="填寫此案的分回計算方式…">'+esc(p.estIndoorNote||"")+'</textarea></div></details>'+
-      '<div style="margin-top:10px">'+pIn("預估分回權狀坪數","rEstDeed",p.estDeed)+'</div>'+
+      '<div style="margin-top:10px">'+pIn("預估分回權狀坪數","rEstDeed",p.estDeed,unitAttr("坪"))+'</div>'+
       '<details class="pdet"><summary>權狀坪數計算公式</summary><div class="pdbody"><textarea class="din" id="rEstDeedNote" style="min-height:56px" placeholder="填寫此案的分回計算方式…">'+esc(p.estDeedNote||"")+'</textarea></div></details>'+
-      '<div style="margin-top:10px">'+pIn("預估分回價值","rEstValue",p.estValue)+'</div>'+
+      '<div style="margin-top:10px">'+pIn("預估分回價值","rEstValue",p.estValue,unitAttr("萬"))+'</div>'+
       '<details class="pdet"><summary>價值計算公式</summary><div class="pdbody"><textarea class="din" id="rEstValueNote" style="min-height:56px" placeholder="填寫此案的分回計算方式…">'+esc(p.estValueNote||"")+'</textarea></div></details>'+
     '</div>'+
     '<div class="track"><h4>記帳表</h4>'+
@@ -1693,6 +1708,7 @@ function openProperty(sid,pid){
 }
 async function saveProperty(){
   const s=students.find(x=>x.id===renoRef.sid); const p=(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p)return;
+  normalizeUnitFields(document.getElementById("dBody"));
   const g=id=>{const e=document.getElementById(id);return e?e.value:"";};
   p.status=g("rStatus"); p.role=g("rRole"); p.address=g("rAddr").trim(); p.contractDate=g("rContract").trim(); p.handoverDate=g("rHandover").trim();
   p.agent=g("rAgent").trim(); p.registrant=g("rRegistrant").trim(); p.price=g("rPrice").trim(); p.area=g("rArea").trim(); p.boughtDate=g("rDate").trim(); p.renovNote=g("rNote");
