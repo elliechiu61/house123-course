@@ -1650,18 +1650,18 @@ function openProperty(sid,pid){
         '<div class="grid2" style="margin-top:8px">'+pIn("登記規費","tReg",tx.reg,unitAttr("萬")+' oninput="recalcProp()"')+pIn("謄本費","tTrans",tx.trans,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
       '</div></details>'+
       '<div style="margin-top:10px">'+pIn("總自備款","rSelfFund",p.selfFund,unitAttr("萬"))+'</div>'+
-      '<div class="grid2" style="margin-top:8px">'+pIn("出資金額","rInvestAmt",p.investAmt,unitAttr("萬"))+pIn("比例","rInvestRatio",p.investRatio,'placeholder="例：50%"')+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("出資金額","rInvestAmt",p.investAmt,unitAttr("萬"))+pIn("比例","rInvestRatio",p.investRatio,unitAttr("%"))+'</div>'+
       '<div style="margin-top:8px">'+pIn("持股比例","rShareRatio",p.shareRatio,'placeholder="例：50%"')+'</div>'+
     '</div>'+
     '<div class="track"><h4>貸款</h4>'+
       '<div class="miniL" style="font-weight:800;color:var(--ink)">科目01（購屋貸款）</div>'+
       '<div class="grid2" style="margin-top:6px">'+pIn("銀行","l1Bank",l1.bank)+pIn("金額","l1Amt",l1.amount,unitAttr("萬"))+'</div>'+
-      '<div class="grid2" style="margin-top:8px">'+pIn("貸款年限","l1Years",l1.years)+pIn("利率","l1Rate",l1.rate,'placeholder="例：2.1%"')+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("貸款年限","l1Years",l1.years,unitAttr("年"))+pIn("利率","l1Rate",l1.rate,unitAttr("%"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("寬限期起","l1GraceS",l1.graceStart,'placeholder="2026/03" oninput="recalcProp()"')+pIn("寬限期迄","l1GraceE",l1.graceEnd,'placeholder="2029/03" oninput="recalcProp()"')+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("利息／月","l1Int",l1.interestPM,'oninput="recalcProp()"')+pIn("本息／月","l1PI",l1.piPM,'oninput="recalcProp()"')+'</div>'+
       '<div class="miniL" style="font-weight:800;color:var(--ink);margin-top:14px">科目04（週轉金）</div>'+
       '<div class="grid2" style="margin-top:6px">'+pIn("銀行","l4Bank",l4.bank)+pIn("金額","l4Amt",l4.amount,unitAttr("萬"))+'</div>'+
-      '<div class="grid2" style="margin-top:8px">'+pIn("貸款年限","l4Years",l4.years)+pIn("利率","l4Rate",l4.rate,'placeholder="例：2.5%"')+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("貸款年限","l4Years",l4.years,unitAttr("年"))+pIn("利率","l4Rate",l4.rate,unitAttr("%"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("寬限期起","l4GraceS",l4.graceStart,'placeholder="2026/03" oninput="recalcProp()"')+pIn("寬限期迄","l4GraceE",l4.graceEnd,'placeholder="2029/03" oninput="recalcProp()"')+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("利息／月","l4Int",l4.interestPM,'oninput="recalcProp()"')+pIn("本息／月","l4PI",l4.piPM,'oninput="recalcProp()"')+'</div>'+
       '<div class="pcalc"><span>每月貸款支出</span><b id="cMonthlyLoan">0</b></div>'+
