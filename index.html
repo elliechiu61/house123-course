@@ -1649,8 +1649,8 @@ function openProperty(sid,pid){
         '<div class="grid2" style="margin-top:8px">'+pIn("印花稅","tStamp",tx.stamp,unitAttr("萬")+' oninput="recalcProp()"')+pIn("代書費","tScriv",tx.scriv,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
         '<div class="grid2" style="margin-top:8px">'+pIn("登記規費","tReg",tx.reg,unitAttr("萬")+' oninput="recalcProp()"')+pIn("謄本費","tTrans",tx.trans,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
       '</div></details>'+
-      '<div class="pcalc"><span>總成本（總價＋稅費＋裝潢）</span><b id="cTotalCost">0</b></div>'+
-      '<div class="grid2" style="margin-top:10px">'+pIn("出資金額","rInvestAmt",p.investAmt,unitAttr("萬"))+pIn("出資比例","rInvestRatio",p.investRatio,'placeholder="例：50%"')+'</div>'+
+      '<div style="margin-top:10px">'+pIn("總自備款","rSelfFund",p.selfFund,unitAttr("萬"))+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("出資金額","rInvestAmt",p.investAmt,unitAttr("萬"))+pIn("比例","rInvestRatio",p.investRatio,'placeholder="例：50%"')+'</div>'+
       '<div style="margin-top:8px">'+pIn("持股比例","rShareRatio",p.shareRatio,'placeholder="例：50%"')+'</div>'+
     '</div>'+
     '<div class="track"><h4>貸款</h4>'+
@@ -1714,7 +1714,7 @@ async function saveProperty(){
   p.agent=g("rAgent").trim(); p.registrant=g("rRegistrant").trim(); p.price=g("rPrice").trim(); p.area=g("rArea").trim(); p.boughtDate=g("rDate").trim(); p.renovNote=g("rNote");
   p.reno=g("rReno");
   p.taxes={feeAgent:g("tFeeAgent"),deed:g("tDeed"),stamp:g("tStamp"),scriv:g("tScriv"),reg:g("tReg"),trans:g("tTrans")};
-  p.investAmt=g("rInvestAmt"); p.investRatio=g("rInvestRatio"); p.shareRatio=g("rShareRatio");
+  p.selfFund=g("rSelfFund"); p.investAmt=g("rInvestAmt"); p.investRatio=g("rInvestRatio"); p.shareRatio=g("rShareRatio");
   p.loan01={bank:g("l1Bank"),amount:g("l1Amt"),years:g("l1Years"),graceStart:g("l1GraceS"),graceEnd:g("l1GraceE"),rate:g("l1Rate"),interestPM:g("l1Int"),piPM:g("l1PI")};
   p.loan04={bank:g("l4Bank"),amount:g("l4Amt"),years:g("l4Years"),graceStart:g("l4GraceS"),graceEnd:g("l4GraceE"),rate:g("l4Rate"),interestPM:g("l4Int"),piPM:g("l4PI")};
   p.rent={gross:g("rRentGross"),mgmt:g("rRentMgmt")};
