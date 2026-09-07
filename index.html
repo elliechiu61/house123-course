@@ -1601,6 +1601,10 @@ function recalcProp(){
   const netRent=pnum(g("rRentGross"))-pnum(g("rRentMgmt"));
   setT("cNetRent",netRent); setT("cCashflow",netRent-ml);
 }
+function ownerSelect(id,curId){
+  const list=students.slice().sort((a,b)=>(''+a.name).localeCompare(''+b.name,"zh-Hant"));
+  return '<select class="din" id="'+id+'">'+list.map(s=>'<option value="'+s.id+'"'+(String(s.id)===String(curId)?' selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>';
+}
 function openProperty(sid,pid){
   const s=students.find(x=>String(x.id)===String(sid)); if(!s)return;
   const p=(s.properties||[]).find(x=>String(x.id)===String(pid)); if(!p)return;
@@ -1611,6 +1615,7 @@ function openProperty(sid,pid){
   document.getElementById("dBody").innerHTML=
     '<div class="track"><h4>物件狀態</h4>'+propStatusSelect("rStatus",p.status||"")+'</div>'+
     '<div class="track"><h4>陪跑標籤</h4>'+renoRoleSelect("rRole",p.role||"")+'</div>'+
+    '<div class="track"><h4>屋主</h4>'+ownerSelect("rOwner",s.id)+'<div style="color:var(--muted);font-size:12px;margin-top:6px">改成其他學員並按「儲存變更」，即可把此物件搬到該學員名下。</div></div>'+
     '<div class="track"><h4>物件資料</h4>'+
       '<div class="miniL">地址</div><input class="din" id="rAddr" value="'+esc(p.address||"")+'">'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">簽約日期</div><input class="din" id="rContract" value="'+esc(p.contractDate||"")+'" placeholder="2026/03"></div>'+
@@ -1702,6 +1707,16 @@ async function saveProperty(){
   p.old={main:g("oMain"),attached:g("oAttached"),common:g("oCommon"),deed:g("oDeed"),landBuild:g("oLandBuild"),zoning:g("oZoning"),far:g("oFar"),landRoad:g("oLandRoad")};
   p.estIndoor=g("rEstIndoor"); p.estIndoorNote=g("rEstIndoorNote"); p.estDeed=g("rEstDeed"); p.estDeedNote=g("rEstDeedNote"); p.estValue=g("rEstValue"); p.estValueNote=g("rEstValueNote");
   p.driveLink=g("rDrive").trim();
+  const newOwner=g("rOwner");
+  if(newOwner && String(newOwner)!==String(renoRef.sid)){
+    const ns=students.find(x=>String(x.id)===String(newOwner));
+    if(ns){
+      s.properties=(s.properties||[]).filter(x=>x.id!==p.id);
+      ns.properties=ns.properties||[]; ns.properties.push(p);
+      renoRef.sid=ns.id;
+      await saveStudents(); closeDrawer(); render(); toast("已將物件改到「"+ns.name+"」名下"); return;
+    }
+  }
   await saveStudents(); closeDrawer(); render(); toast("已更新物件");
 }
 async function deleteProperty(){
