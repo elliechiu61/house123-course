@@ -1640,11 +1640,9 @@ function openProperty(sid,pid){
       '<div><div class="miniL">交屋日期</div><input class="din" id="rHandover" value="'+esc(p.handoverDate||"")+'" placeholder="2026/06"></div></div>'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">仲介</div><input class="din" id="rAgent" value="'+esc(p.agent||"")+'"></div>'+
       '<div><div class="miniL">成交總價</div><input class="din" id="rPrice" value="'+esc(p.price||"")+'" '+unitAttr("萬")+'></div></div>'+
-      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">基地／坪數</div><input class="din" id="rArea" value="'+esc(p.area||"")+'" '+unitAttr("坪")+'></div>'+
-      '<div><div class="miniL">買到日期</div><input class="din" id="rDate" value="'+esc(p.boughtDate||"")+'"></div></div>'+
+      '<div class="miniL" style="margin-top:8px">買到日期</div><input class="din" id="rDate" value="'+esc(p.boughtDate||"")+'">'+
       '<div class="miniL" style="margin-top:8px">登記人</div><input class="din" id="rRegistrant" value="'+esc(p.registrant||"")+'">'+
     '</div>'+
-    '<div class="track"><h4>改建進度備註</h4><textarea class="din" id="rNote" style="min-height:60px" placeholder="整合戶數、送件進度、建商、權變比例、卡關點…">'+esc(p.renovNote||"")+'</textarea></div>'+
         '<div class="track"><h4>財務・成本</h4>'+
       '<div class="miniL" style="margin-top:8px">裝潢</div><input class="din" id="rReno" data-unit="萬" placeholder="裝潢費用" value="'+esc(p.reno||"")+'">'+
       '<details class="pdet"><summary>稅費（合計 <span id="cTaxSum">0</span>）</summary><div class="pdbody">'+
@@ -1688,8 +1686,11 @@ function openProperty(sid,pid){
     '</div>'+
     '<div class="track"><h4>改建資訊</h4>'+
       '<div class="miniL" style="margin-top:8px">改建基地</div><input class="din" id="rSite" value="'+esc(p.site||"")+'">'+
+      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">地號</div><input class="din" id="rParcel" value="'+esc(p.parcel||"")+'"></div>'+
+      '<div><div class="miniL">整宗基地面積</div><input class="din" id="rSiteArea" value="'+esc(p.siteArea||"")+'" '+unitAttr("坪")+'></div></div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("開發商","rDeveloper",p.developer)+pIn("建商","rBuilder",p.builder)+'</div>'+
     '</div>'+
+    '<div class="track"><h4>改建進度備註</h4><textarea class="din" id="rNote" style="min-height:60px" placeholder="整合戶數、送件進度、建商、權變比例、卡關點…">'+esc(p.renovNote||"")+'</textarea></div>'+
     '<div class="track"><h4>舊屋</h4>'+
       '<div class="grid2">'+pIn("主建物","oMain",ob.main,unitAttr("坪"))+pIn("附屬建物","oAttached",ob.attached,unitAttr("坪"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("公設","oCommon",ob.common,unitAttr("坪"))+pIn("權狀坪數","oDeed",ob.deed,unitAttr("坪"))+'</div>'+
@@ -1718,7 +1719,7 @@ async function saveProperty(){
   normalizeUnitFields(document.getElementById("dBody"));
   const g=id=>{const e=document.getElementById(id);return e?e.value:"";};
   p.status=g("rStatus"); p.role=g("rRole"); p.address=g("rAddr").trim(); p.contractDate=g("rContract").trim(); p.handoverDate=g("rHandover").trim();
-  p.agent=g("rAgent").trim(); p.registrant=g("rRegistrant").trim(); p.price=g("rPrice").trim(); p.area=g("rArea").trim(); p.boughtDate=g("rDate").trim(); p.renovNote=g("rNote");
+  p.agent=g("rAgent").trim(); p.registrant=g("rRegistrant").trim(); p.price=g("rPrice").trim(); p.boughtDate=g("rDate").trim(); p.renovNote=g("rNote");
   p.reno=g("rReno");
   p.taxes={feeAgent:g("tFeeAgent"),deed:g("tDeed"),stamp:g("tStamp"),scriv:g("tScriv"),reg:g("tReg"),trans:g("tTrans")};
   p.selfFund=g("rSelfFund"); p.investAmt=g("rInvestAmt"); p.investRatio=g("rInvestRatio"); p.shareRatio=g("rShareRatio");
@@ -1726,7 +1727,7 @@ async function saveProperty(){
   p.loan04={bank:g("l4Bank"),amount:g("l4Amt"),years:g("l4Years"),graceStart:g("l4GraceS"),graceEnd:g("l4GraceE"),rate:g("l4Rate"),interestPM:g("l4Int"),piPM:g("l4PI")};
   p.rent={gross:g("rRentGross"),mgmt:g("rRentMgmt")};
   p.photosBefore=g("rPhotoBefore"); p.photosAfter=g("rPhotoAfter"); p.floorPlan=g("rFloorPlan");
-  p.site=g("rSite"); p.developer=g("rDeveloper").trim(); p.builder=g("rBuilder").trim();
+  p.site=g("rSite"); p.parcel=g("rParcel").trim(); p.siteArea=g("rSiteArea").trim(); p.developer=g("rDeveloper").trim(); p.builder=g("rBuilder").trim();
   p.old={main:g("oMain"),attached:g("oAttached"),common:g("oCommon"),deed:g("oDeed"),landBuild:g("oLandBuild"),zoning:g("oZoning"),far:g("oFar"),landRoad:g("oLandRoad")};
   p.estIndoor=g("rEstIndoor"); p.estIndoorNote=g("rEstIndoorNote"); p.estDeed=g("rEstDeed"); p.estDeedNote=g("rEstDeedNote"); p.estValue=g("rEstValue"); p.estValueNote=g("rEstValueNote");
   p.driveLink=g("rDrive").trim();
