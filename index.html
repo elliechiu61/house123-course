@@ -1632,7 +1632,24 @@ async function uploadRenoFile(input){
     if(error){ if(msg) msg.textContent="上傳失敗："+error.message; return; }
     document.getElementById("rSiteFilePath").value=path;
     if(msg) msg.textContent="✅ 已上傳「"+f.name+"」，記得按「儲存變更」";
+    renderRenoPreview();
   }catch(e){ if(msg) msg.textContent="上傳失敗："+e.message; }
+}
+async function renderRenoPreview(){
+  const box=document.getElementById("rSitePreview"); if(!box) return;
+  const path=(document.getElementById("rSiteFilePath")||{}).value||"";
+  if(!path){ box.innerHTML=""; return; }
+  const isImg=/\.(jpe?g|png|gif|webp)$/i.test(path);
+  box.innerHTML='<div class="psub">載入預覽中…</div>';
+  const {data,error}=await supa.storage.from(RENO_BUCKET).createSignedUrl(path, 3600);
+  if(error){ box.innerHTML='<div class="psub">無法載入：'+esc(error.message)+'</div>'; return; }
+  const url=data.signedUrl;
+  const rm='<button type="button" class="btn ghost sm" style="margin-top:8px" onclick="removeRenoFile()">移除檔案</button>';
+  if(isImg){
+    box.innerHTML='<a href="'+url+'" target="_blank" title="點擊放大"><img src="'+url+'" alt="改建基地" style="max-width:100%;border:1px solid var(--line);border-radius:10px;display:block"></a>'+rm;
+  }else{
+    box.innerHTML='<button type="button" class="btn ghost sm" onclick="openRenoFile()">📄 開啟 PDF</button> '+rm;
+  }
 }
 async function openRenoFile(){
   const path=document.getElementById("rSiteFilePath").value; if(!path){ toast("尚無檔案"); return; }
@@ -1643,7 +1660,7 @@ async function openRenoFile(){
 function removeRenoFile(){
   const h=document.getElementById("rSiteFilePath"); if(h) h.value="";
   const msg=document.getElementById("rSiteFileMsg"); if(msg) msg.textContent="已移除（記得按儲存變更）";
-  const btns=document.querySelector('#rSiteFileWrap > div'); if(btns) btns.remove();
+  const box=document.getElementById("rSitePreview"); if(box) box.innerHTML="";
 }
 function ownerSelect(id,curId){
   const list=students.slice().sort((a,b)=>(''+a.name).localeCompare(''+b.name,"zh-Hant"));
@@ -1713,7 +1730,7 @@ function openProperty(sid,pid){
     '<div class="track"><h4>改建資訊</h4>'+
       '<div class="miniL" style="margin-top:8px">改建基地（上傳 PDF／JPG）</div>'+
       '<div id="rSiteFileWrap">'+
-        (p.siteFile ? '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px"><button type="button" class="btn ghost sm" onclick="openRenoFile()">📄 開啟目前檔案</button><button type="button" class="btn ghost sm" onclick="removeRenoFile()">移除</button></div>' : '')+
+        '<div id="rSitePreview" style="margin-bottom:8px"></div>'+
         '<input type="file" accept="application/pdf,image/jpeg,.pdf,.jpg,.jpeg" id="rSiteFileInput" onchange="uploadRenoFile(this)">'+
         '<div class="psub" id="rSiteFileMsg"></div>'+
         '<input type="hidden" id="rSiteFilePath" value="'+esc(p.siteFile||"")+'">'+
@@ -1745,6 +1762,7 @@ function openProperty(sid,pid){
   document.getElementById("dFoot").innerHTML='<button class="btn primary" onclick="saveProperty()">儲存變更</button><button class="btn ghost" onclick="closeDrawer()">關閉</button><button class="btn del" onclick="deleteProperty()">刪除物件</button>';
   document.getElementById("scrim").classList.add("show"); document.getElementById("drawer").classList.add("show");
   setTimeout(recalcProp,0);
+  renderRenoPreview();
 }
 async function saveProperty(){
   const s=students.find(x=>x.id===renoRef.sid); const p=(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p)return;
