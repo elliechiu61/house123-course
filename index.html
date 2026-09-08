@@ -1645,7 +1645,7 @@ function openProperty(sid,pid){
     '</div>'+
     '<div class="track"><h4>改建進度備註</h4><textarea class="din" id="rNote" style="min-height:60px" placeholder="整合戶數、送件進度、建商、權變比例、卡關點…">'+esc(p.renovNote||"")+'</textarea></div>'+
         '<div class="track"><h4>財務・成本</h4>'+
-      pTA("裝潢","rReno",p.reno,"裝潢費用").replace("min-height:46px","min-height:0").replace("<textarea","<input").replace("></textarea>","").replace('id="rReno"','id="rReno" data-unit="萬"')+
+      '<div class="miniL" style="margin-top:8px">裝潢</div><input class="din" id="rReno" data-unit="萬" placeholder="裝潢費用" value="'+esc(p.reno||"")+'">'+
       '<details class="pdet"><summary>稅費（合計 <span id="cTaxSum">0</span>）</summary><div class="pdbody">'+
         '<div class="grid2">'+pIn("仲介費","tFeeAgent",tx.feeAgent,unitAttr("萬")+' oninput="recalcProp()"')+pIn("契稅","tDeed",tx.deed,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
         '<div class="grid2" style="margin-top:8px">'+pIn("印花稅","tStamp",tx.stamp,unitAttr("萬")+' oninput="recalcProp()"')+pIn("代書費","tScriv",tx.scriv,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
@@ -1686,7 +1686,7 @@ function openProperty(sid,pid){
       '<div class="psub">目前用連結方式；若要直接上傳檔案，之後可加 Supabase 儲存空間。</div>'+
     '</div>'+
     '<div class="track"><h4>改建資訊</h4>'+
-      pTA("改建基地","rSite",p.site,"").replace("min-height:46px","min-height:0").replace("<textarea","<input").replace("></textarea>","")+
+      '<div class="miniL" style="margin-top:8px">改建基地</div><input class="din" id="rSite" value="'+esc(p.site||"")+'">'+
       '<div class="grid2" style="margin-top:8px">'+pIn("開發商","rDeveloper",p.developer)+pIn("建商","rBuilder",p.builder)+'</div>'+
     '</div>'+
     '<div class="track"><h4>舊屋</h4>'+
