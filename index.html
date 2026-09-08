@@ -1781,7 +1781,9 @@ function openProperty(sid,pid){
       '<details class="pdet"><summary>每月淨租金收入（<span id="cNetRent">0</span>）</summary><div class="pdbody">'+
         '<div class="grid2">'+pIn("總收租金","rRentGross",rt.gross,unitAttr("萬")+' oninput="recalcProp()"')+pIn("代管費","rRentMgmt",rt.mgmt,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
       '</div></details>'+
-      '<div class="pcalc"><span>每月淨現金流（淨租金－每月貸款支出）</span><b id="cCashflow">0</b></div>'+
+      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">代租</div><input class="din" id="rRentAgent" value="'+esc(p.rentAgent||"")+'"></div>'+
+      '<div><div class="miniL">代管</div><input class="din" id="rMgmtAgent" value="'+esc(p.mgmtAgent||"")+'"></div></div>'+
+      '<div class="pcalc" style="margin-top:8px"><span>每月淨現金流（淨租金－每月貸款支出）</span><b id="cCashflow">0</b></div>'+
     '</div>'+
     '<div class="track"><h4>照片・格局</h4>'+
       pTA("裝修前照片","rPhotoBefore",p.photosBefore,"貼上圖片或雲端連結，一行一個")+
@@ -1839,7 +1841,7 @@ async function saveProperty(){
   p.jvS1Q1=ynVal("rS1Q1"); p.jvS1Q2=ynVal("rS1Q2"); p.jvS2Q1=ynVal("rS2Q1"); p.jvS3Q1=ynVal("rS3Q1"); p.jvS3Q2=ynVal("rS3Q2");
   p.loan01={bank:g("l1Bank"),amount:g("l1Amt"),years:g("l1Years"),graceStart:g("l1GraceS"),graceEnd:g("l1GraceE"),rate:g("l1Rate"),interestPM:g("l1Int"),piPM:g("l1PI")};
   p.loan04={bank:g("l4Bank"),amount:g("l4Amt"),years:g("l4Years"),graceStart:g("l4GraceS"),graceEnd:g("l4GraceE"),rate:g("l4Rate"),interestPM:g("l4Int"),piPM:g("l4PI")};
-  p.rent={gross:g("rRentGross"),mgmt:g("rRentMgmt")};
+  p.rent={gross:g("rRentGross"),mgmt:g("rRentMgmt")}; p.rentAgent=g("rRentAgent").trim(); p.mgmtAgent=g("rMgmtAgent").trim();
   p.photosBefore=g("rPhotoBefore"); p.photosAfter=g("rPhotoAfter"); p.floorPlan=g("rFloorPlan");
   p.siteFile=g("rSiteFilePath"); p.parcel=g("rParcel").trim(); p.siteArea=g("rSiteArea").trim(); p.developer=g("rDeveloper").trim(); p.builder=g("rBuilder").trim();
   p.old={main:g("oMain"),attached:g("oAttached"),common:g("oCommon"),deed:g("oDeed"),landBuild:g("oLandBuild"),zoning:g("oZoning"),far:g("oFar"),landRoad:g("oLandRoad")};
