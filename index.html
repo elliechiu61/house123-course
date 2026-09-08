@@ -1354,8 +1354,10 @@ function renderReno(){
     const rc=roleColor(p.role);
     const rolePill=p.role?'<span class="tag" style="'+statusFill(rc)+';margin-left:6px">'+esc(p.role)+'</span>':'';
     const card=document.createElement("div"); card.className="propcard"; card.onclick=()=>openProperty(s.id,p.id);
+    const ob=p.old||{};
+    const ownerLine=[s.name,p.price,ob.landBuild,ob.zoning].filter(Boolean).map(esc).join(" · ");
     card.innerHTML='<div class="addr">'+esc(p.address||"未填地址")+'</div>'+
-      '<div class="owner">'+esc(s.name)+(p.price?' · '+esc(p.price):'')+'</div>'+pill+rolePill+
+      '<div class="owner">'+ownerLine+'</div>'+pill+rolePill+
       (p.handoverDate?'<div class="stepwrap"><div class="lbl"><span>交屋日期</span><span>'+esc(p.handoverDate)+'</span></div></div>':'')+
       (p.agent?'<div class="stepwrap"><div class="lbl"><span>仲介</span><span>'+esc(p.agent)+'</span></div></div>':'');
     grid.appendChild(card);
