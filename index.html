@@ -1627,7 +1627,7 @@ function loanMonthlyById(pfx){
 function recalcProp(){
   const g=id=>{const e=document.getElementById(id);return e?e.value:"";};
   const setT=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=fmtMoney(v);};
-  const taxSum=["tFeeAgent","tDeed","tStamp","tScriv","tReg","tTrans"].reduce((a,k)=>a+pnum(g(k)),0);
+  const taxSum=["tFeeAgent","tDeed","tStamp","tScriv","tReg","tTrans","tEscrow"].reduce((a,k)=>a+pnum(g(k)),0);
   const total=pnum(g("rPrice"))+taxSum+pnum(g("rReno"));
   setT("cTaxSum",taxSum); setT("cTotalCost",total);
   const ml=loanMonthlyById("l1")+loanMonthlyById("l4");
@@ -1724,7 +1724,6 @@ function openProperty(sid,pid){
       '<div><div class="miniL">交屋日期</div><input class="din" id="rHandover" value="'+esc(p.handoverDate||"")+'" placeholder="2026/06"></div></div>'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">仲介</div><input class="din" id="rAgent" value="'+esc(p.agent||"")+'"></div>'+
       '<div><div class="miniL">成交總價</div><input class="din" id="rPrice" value="'+esc(p.price||"")+'" '+unitAttr("萬")+'></div></div>'+
-      '<div class="miniL" style="margin-top:8px">買到日期</div><input class="din" id="rDate" value="'+esc(p.boughtDate||"")+'">'+
       '<div class="miniL" style="margin-top:8px">登記人</div><input class="din" id="rRegistrant" value="'+esc(p.registrant||"")+'">'+
     '</div>'+
         '<div class="track"><h4>財務・成本</h4>'+
@@ -1733,6 +1732,7 @@ function openProperty(sid,pid){
         '<div class="grid2">'+pIn("仲介費","tFeeAgent",tx.feeAgent,unitAttr("萬")+' oninput="recalcProp()"')+pIn("契稅","tDeed",tx.deed,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
         '<div class="grid2" style="margin-top:8px">'+pIn("印花稅","tStamp",tx.stamp,unitAttr("萬")+' oninput="recalcProp()"')+pIn("代書費","tScriv",tx.scriv,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
         '<div class="grid2" style="margin-top:8px">'+pIn("登記規費","tReg",tx.reg,unitAttr("萬")+' oninput="recalcProp()"')+pIn("謄本費","tTrans",tx.trans,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
+        '<div class="grid2" style="margin-top:8px">'+pIn("履保手續費","tEscrow",tx.escrow,unitAttr("萬")+' oninput="recalcProp()"')+'<div></div></div>'+
       '</div></details>'+
       '<div style="margin-top:10px">'+pIn("總自備款","rSelfFund",p.selfFund,unitAttr("萬"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("出資金額","rInvestAmt",p.investAmt,unitAttr("萬"))+pIn("出資比例","rInvestRatio",p.investRatio,unitAttr("%"))+'</div>'+
@@ -1831,9 +1831,9 @@ async function saveProperty(){
   normalizeUnitFields(document.getElementById("dBody"));
   const g=id=>{const e=document.getElementById(id);return e?e.value:"";};
   p.status=g("rStatus"); p.role=g("rRole"); p.address=g("rAddr").trim(); p.contractDate=g("rContract").trim(); p.handoverDate=g("rHandover").trim();
-  p.agent=g("rAgent").trim(); p.registrant=g("rRegistrant").trim(); p.price=g("rPrice").trim(); p.boughtDate=g("rDate").trim(); p.renovNote=g("rNote");
+  p.agent=g("rAgent").trim(); p.registrant=g("rRegistrant").trim(); p.price=g("rPrice").trim(); p.renovNote=g("rNote");
   p.reno=g("rReno");
-  p.taxes={feeAgent:g("tFeeAgent"),deed:g("tDeed"),stamp:g("tStamp"),scriv:g("tScriv"),reg:g("tReg"),trans:g("tTrans")};
+  p.taxes={feeAgent:g("tFeeAgent"),deed:g("tDeed"),stamp:g("tStamp"),scriv:g("tScriv"),reg:g("tReg"),trans:g("tTrans"),escrow:g("tEscrow")};
   p.selfFund=g("rSelfFund"); p.investAmt=g("rInvestAmt"); p.investRatio=g("rInvestRatio"); p.shareRatio=g("rShareRatio");
   p.hasJVContract=ynVal("rJV"); p.jvStage=g("rJVStage");
   p.jvS1Q1=ynVal("rS1Q1"); p.jvS1Q2=ynVal("rS1Q2"); p.jvS2Q1=ynVal("rS2Q1"); p.jvS3Q1=ynVal("rS3Q1"); p.jvS3Q2=ynVal("rS3Q2");
