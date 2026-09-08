@@ -1664,6 +1664,27 @@ function removeRenoFile(){
   const msg=document.getElementById("rSiteFileMsg"); if(msg) msg.textContent="已移除（記得按儲存變更）";
   const box=document.getElementById("rSitePreview"); if(box) box.innerHTML="";
 }
+/* 共用「是／否」元件（兩個 checkbox 互斥） */
+function ynRow(label,id,val){
+  return '<div class="miniL" style="margin-top:10px">'+esc(label)+'</div>'+
+    '<div style="display:flex;gap:20px;margin-top:4px">'+
+      '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600"><input type="checkbox" id="'+id+'Y" style="width:auto;flex:none" onchange="ynToggle(\''+id+'\',true)"'+(val===true?' checked':'')+'> 是</label>'+
+      '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:600"><input type="checkbox" id="'+id+'N" style="width:auto;flex:none" onchange="ynToggle(\''+id+'\',false)"'+(val===false?' checked':'')+'> 否</label>'+
+    '</div>';
+}
+function ynToggle(id,yes){
+  const y=document.getElementById(id+'Y'), n=document.getElementById(id+'N'); if(!y||!n)return;
+  if(yes){ if(y.checked) n.checked=false; } else { if(n.checked) y.checked=false; }
+  if(id==='rJV'){ const box=document.getElementById('rJVStages'); if(box) box.style.display=y.checked?'block':'none'; }
+}
+function ynVal(id){
+  const y=document.getElementById(id+'Y'), n=document.getElementById(id+'N');
+  if(y&&y.checked) return true; if(n&&n.checked) return false; return null;
+}
+function jvStageChange(){
+  const v=(document.getElementById('rJVStage')||{}).value||'';
+  ['1','2','3'].forEach(k=>{ const el=document.getElementById('rJVS'+k); if(el) el.style.display=(v==='stage'+k)?'block':'none'; });
+}
 function ownerSelect(id,curId){
   const list=students.slice().sort((a,b)=>(''+a.name).localeCompare(''+b.name,"zh-Hant"));
   return '<select class="din" id="'+id+'">'+list.map(s=>'<option value="'+s.id+'"'+(String(s.id)===String(curId)?' selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>';
@@ -1698,6 +1719,27 @@ function openProperty(sid,pid){
       '<div style="margin-top:10px">'+pIn("總自備款","rSelfFund",p.selfFund,unitAttr("萬"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("出資金額","rInvestAmt",p.investAmt,unitAttr("萬"))+pIn("出資比例","rInvestRatio",p.investRatio,unitAttr("%"))+'</div>'+
       '<div style="margin-top:8px">'+pIn("持股比例","rShareRatio",p.shareRatio,unitAttr("%"))+'</div>'+
+      ynRow('是否已簽「合資合約」？','rJV',p.hasJVContract)+
+      '<div id="rJVStages" style="display:'+(p.hasJVContract===true?'block':'none')+';margin-top:12px;padding-top:10px;border-top:1px solid var(--line-soft)">'+
+        '<div class="miniL" style="font-weight:800;color:var(--ink)">執行階段</div>'+
+        '<select class="din" id="rJVStage" onchange="jvStageChange()">'+
+          '<option value="">請選擇…</option>'+
+          '<option value="stage1"'+(p.jvStage==="stage1"?" selected":"")+'>Stage 1</option>'+
+          '<option value="stage2"'+(p.jvStage==="stage2"?" selected":"")+'>Stage 2</option>'+
+          '<option value="stage3"'+(p.jvStage==="stage3"?" selected":"")+'>Stage 3</option>'+
+        '</select>'+
+        '<div id="rJVS1" style="display:'+(p.jvStage==="stage1"?'block':'none')+'">'+
+          ynRow('是否已經簽「本票」擔保房貸持份金額','rS1Q1',p.jvS1Q1)+
+          ynRow('是否已經設定「第二順位抵押權」擔保','rS1Q2',p.jvS1Q2)+
+        '</div>'+
+        '<div id="rJVS2" style="display:'+(p.jvStage==="stage2"?'block':'none')+'">'+
+          ynRow('是否已經透過「買賣」還原實際持份','rS2Q1',p.jvS2Q1)+
+        '</div>'+
+        '<div id="rJVS3" style="display:'+(p.jvStage==="stage3"?'block':'none')+'">'+
+          ynRow('是否已經各自跟「建商」簽約','rS3Q1',p.jvS3Q1)+
+          ynRow('是否已經各自完成「信託」設定','rS3Q2',p.jvS3Q2)+
+        '</div>'+
+      '</div>'+
     '</div>'+
     '<div class="track"><h4>貸款</h4>'+
       '<div class="loanbox" style="border-color:#12433D">'+
@@ -1775,6 +1817,8 @@ async function saveProperty(){
   p.reno=g("rReno");
   p.taxes={feeAgent:g("tFeeAgent"),deed:g("tDeed"),stamp:g("tStamp"),scriv:g("tScriv"),reg:g("tReg"),trans:g("tTrans")};
   p.selfFund=g("rSelfFund"); p.investAmt=g("rInvestAmt"); p.investRatio=g("rInvestRatio"); p.shareRatio=g("rShareRatio");
+  p.hasJVContract=ynVal("rJV"); p.jvStage=g("rJVStage");
+  p.jvS1Q1=ynVal("rS1Q1"); p.jvS1Q2=ynVal("rS1Q2"); p.jvS2Q1=ynVal("rS2Q1"); p.jvS3Q1=ynVal("rS3Q1"); p.jvS3Q2=ynVal("rS3Q2");
   p.loan01={bank:g("l1Bank"),amount:g("l1Amt"),years:g("l1Years"),graceStart:g("l1GraceS"),graceEnd:g("l1GraceE"),rate:g("l1Rate"),interestPM:g("l1Int"),piPM:g("l1PI")};
   p.loan04={bank:g("l4Bank"),amount:g("l4Amt"),years:g("l4Years"),graceStart:g("l4GraceS"),graceEnd:g("l4GraceE"),rate:g("l4Rate"),interestPM:g("l4Int"),piPM:g("l4PI")};
   p.rent={gross:g("rRentGross"),mgmt:g("rRentMgmt")};
