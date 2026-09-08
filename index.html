@@ -1619,6 +1619,32 @@ function recalcProp(){
   const netRent=pnum(g("rRentGross"))-pnum(g("rRentMgmt"));
   setT("cNetRent",netRent); setT("cCashflow",netRent-ml);
 }
+const RENO_BUCKET="reno-docs";
+async function uploadRenoFile(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const ok=/pdf$/i.test(f.type)||/jpe?g$/i.test(f.type)||/\.(pdf|jpe?g)$/i.test(f.name);
+  if(!ok){ toast("只能上傳 PDF 或 JPG"); input.value=""; return; }
+  const msg=document.getElementById("rSiteFileMsg"); if(msg) msg.textContent="上傳中…";
+  try{
+    const ext=(f.name.split(".").pop()||"dat").toLowerCase();
+    const path=((renoRef&&renoRef.pid)||"p")+"_"+Date.now()+"."+ext;
+    const {error}=await supa.storage.from(RENO_BUCKET).upload(path, f, {upsert:true});
+    if(error){ if(msg) msg.textContent="上傳失敗："+error.message; return; }
+    document.getElementById("rSiteFilePath").value=path;
+    if(msg) msg.textContent="✅ 已上傳「"+f.name+"」，記得按「儲存變更」";
+  }catch(e){ if(msg) msg.textContent="上傳失敗："+e.message; }
+}
+async function openRenoFile(){
+  const path=document.getElementById("rSiteFilePath").value; if(!path){ toast("尚無檔案"); return; }
+  const {data,error}=await supa.storage.from(RENO_BUCKET).createSignedUrl(path, 3600);
+  if(error){ toast("開啟失敗："+error.message); return; }
+  window.open(data.signedUrl, "_blank");
+}
+function removeRenoFile(){
+  const h=document.getElementById("rSiteFilePath"); if(h) h.value="";
+  const msg=document.getElementById("rSiteFileMsg"); if(msg) msg.textContent="已移除（記得按儲存變更）";
+  const btns=document.querySelector('#rSiteFileWrap > div'); if(btns) btns.remove();
+}
 function ownerSelect(id,curId){
   const list=students.slice().sort((a,b)=>(''+a.name).localeCompare(''+b.name,"zh-Hant"));
   return '<select class="din" id="'+id+'">'+list.map(s=>'<option value="'+s.id+'"'+(String(s.id)===String(curId)?' selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>';
@@ -1685,7 +1711,13 @@ function openProperty(sid,pid){
       '<div class="psub">目前用連結方式；若要直接上傳檔案，之後可加 Supabase 儲存空間。</div>'+
     '</div>'+
     '<div class="track"><h4>改建資訊</h4>'+
-      '<div class="miniL" style="margin-top:8px">改建基地</div><input class="din" id="rSite" value="'+esc(p.site||"")+'">'+
+      '<div class="miniL" style="margin-top:8px">改建基地（上傳 PDF／JPG）</div>'+
+      '<div id="rSiteFileWrap">'+
+        (p.siteFile ? '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px"><button type="button" class="btn ghost sm" onclick="openRenoFile()">📄 開啟目前檔案</button><button type="button" class="btn ghost sm" onclick="removeRenoFile()">移除</button></div>' : '')+
+        '<input type="file" accept="application/pdf,image/jpeg,.pdf,.jpg,.jpeg" id="rSiteFileInput" onchange="uploadRenoFile(this)">'+
+        '<div class="psub" id="rSiteFileMsg"></div>'+
+        '<input type="hidden" id="rSiteFilePath" value="'+esc(p.siteFile||"")+'">'+
+      '</div>'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">地號</div><input class="din" id="rParcel" value="'+esc(p.parcel||"")+'"></div>'+
       '<div><div class="miniL">整宗基地面積</div><input class="din" id="rSiteArea" value="'+esc(p.siteArea||"")+'" '+unitAttr("坪")+'></div></div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("開發商","rDeveloper",p.developer)+pIn("建商","rBuilder",p.builder)+'</div>'+
@@ -1727,7 +1759,7 @@ async function saveProperty(){
   p.loan04={bank:g("l4Bank"),amount:g("l4Amt"),years:g("l4Years"),graceStart:g("l4GraceS"),graceEnd:g("l4GraceE"),rate:g("l4Rate"),interestPM:g("l4Int"),piPM:g("l4PI")};
   p.rent={gross:g("rRentGross"),mgmt:g("rRentMgmt")};
   p.photosBefore=g("rPhotoBefore"); p.photosAfter=g("rPhotoAfter"); p.floorPlan=g("rFloorPlan");
-  p.site=g("rSite"); p.parcel=g("rParcel").trim(); p.siteArea=g("rSiteArea").trim(); p.developer=g("rDeveloper").trim(); p.builder=g("rBuilder").trim();
+  p.siteFile=g("rSiteFilePath"); p.parcel=g("rParcel").trim(); p.siteArea=g("rSiteArea").trim(); p.developer=g("rDeveloper").trim(); p.builder=g("rBuilder").trim();
   p.old={main:g("oMain"),attached:g("oAttached"),common:g("oCommon"),deed:g("oDeed"),landBuild:g("oLandBuild"),zoning:g("oZoning"),far:g("oFar"),landRoad:g("oLandRoad")};
   p.estIndoor=g("rEstIndoor"); p.estIndoorNote=g("rEstIndoorNote"); p.estDeed=g("rEstDeed"); p.estDeedNote=g("rEstDeedNote"); p.estValue=g("rEstValue"); p.estValueNote=g("rEstValueNote");
   p.driveLink=g("rDrive").trim();
