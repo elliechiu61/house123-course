@@ -1599,7 +1599,7 @@ document.addEventListener("focusout",e=>{
 });
 function pTA(label,id,val,ph){return '<div class="miniL" style="margin-top:8px">'+label+'</div><textarea class="din" id="'+id+'" style="min-height:46px" placeholder="'+(ph||"")+'">'+esc(val||"")+'</textarea>';}
 function pWithin(a,b){ if(!a||!b)return false; const now=new Date().toISOString().slice(0,7); const n=x=>(''+x).replace(/\//g,'-').slice(0,7); return n(a)<=now&&now<=n(b); }
-function fmtMoney(v){ v=Math.round(v||0); return v.toLocaleString("en-US"); }
+function fmtMoney(v){ v=Math.round((v||0)*10)/10; return v.toLocaleString("en-US",{minimumFractionDigits:1,maximumFractionDigits:1}); }
 function loanMonthlyById(pfx){
   const g=id=>{const e=document.getElementById(id);return e?e.value:"";};
   const inGrace=pWithin(g(pfx+"GraceS"),g(pfx+"GraceE"));
