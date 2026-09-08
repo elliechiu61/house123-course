@@ -658,6 +658,12 @@ async function doSignOut(){ try{ await supa.auth.signOut(); }catch(e){} location
 async function sGet(k){ const {data,error}=await supa.from("app_state").select("value").eq("key",k).maybeSingle(); if(error){ console.error(error); return null; } return data?data.value:null; }
 async function sSet(k,v){ const {error}=await supa.from("app_state").upsert({key:k,value:v,updated_at:new Date().toISOString()}); if(error){ console.error(error); toast("儲存失敗，請檢查連線"); } }
 async function loadStudents(cid){ const raw=await sGet("students:"+cid); return raw?migrate(JSON.parse(raw)):[]; }
+async function loadAllCohortStudents(){
+  const out=[];
+  for(const c of cohorts){ const list=await loadStudents(c.id); list.forEach(s=>{ s.__cohort=c.id; out.push(s); }); }
+  return out;
+}
+async function loadActiveStudents(){ return activeCohort==="__all__" ? await loadAllCohortStudents() : await loadStudents(activeCohort); }
 
 /* realtime */
 let rtChannel=null, refreshPending=false, refreshTimer=null;
@@ -670,11 +676,11 @@ async function remoteRefresh(){
   const busy=document.getElementById("drawer").classList.contains("show")||document.querySelector(".modal.show");
   if(busy){ refreshPending=true; return; }
   const rawT=await sGet("tags"); if(rawT) tags=JSON.parse(rawT);
-  const rawC=await sGet("cohorts"); if(rawC){ cohorts=JSON.parse(rawC); if(!cohorts.find(c=>c.id===activeCohort)&&cohorts[0]) activeCohort=cohorts[0].id; }
-  students=await loadStudents(activeCohort);
+  const rawC=await sGet("cohorts"); if(rawC){ cohorts=JSON.parse(rawC); if(activeCohort!=="__all__"&&!cohorts.find(c=>c.id===activeCohort)&&cohorts[0]) activeCohort=cohorts[0].id; }
+  students=await loadActiveStudents();
   buildFlagChips(); renderCohorts(); render();
 }
-async function saveStudents(){ await sSet("students:"+activeCohort, JSON.stringify(students)); }
+async function saveStudents(){ if(activeCohort==="__all__") return; await sSet("students:"+activeCohort, JSON.stringify(students)); }
 async function saveCohorts(){ await sSet("cohorts",JSON.stringify(cohorts)); await sSet("activeCohort",activeCohort); }
 async function saveTags(){ await sSet("tags",JSON.stringify(tags)); }
 
@@ -713,12 +719,12 @@ async function startApp(){
   if(rawC){
     cohorts=JSON.parse(rawC);
     activeCohort=(await sGet("activeCohort"))||cohorts[0].id;
-    if(!cohorts.find(c=>c.id===activeCohort)) activeCohort=cohorts[0].id;
+    if(activeCohort!=="__all__"&&!cohorts.find(c=>c.id===activeCohort)) activeCohort=cohorts[0].id;
   }else{
     cohorts=[{id:"c1",name:"第一班"}]; activeCohort="c1";
     await sSet("students:c1",JSON.stringify([])); await saveCohorts();
   }
-  students=await loadStudents(activeCohort);
+  students=await loadActiveStudents();
   buildRegionOptions(); buildStageOptions(); buildStatusFilterOptions(); renderCohorts(); buildFlagChips(); render();
   subscribeRealtime();
   setTimeout(()=>{ if(typeof fitTable==="function") fitTable(); },300);
@@ -739,6 +745,11 @@ async function boot(){
 /* cohorts */
 function renderCohorts(){
   const el=document.getElementById("cohorts"); el.innerHTML="";
+  const allB=document.createElement("button");
+  allB.className="ctab"+(activeCohort==="__all__"?" active":"");
+  allB.onclick=()=>{ switchCohort("__all__"); };
+  allB.innerHTML='全部 <span class="cnt" data-cnt="__all__"></span>';
+  el.appendChild(allB);
   cohorts.forEach(c=>{
     const b=document.createElement("button");
     b.className="ctab"+(c.id===activeCohort?" active":"");
@@ -766,13 +777,16 @@ function renderCohorts(){
 }
 let dragCid=null;
 async function updateCohortCounts(){
+  let total=0;
   for(const c of cohorts){
     let n=c.id===activeCohort?students.length:(await loadStudents(c.id)).length;
+    total+=n;
     const s=document.querySelector('[data-cnt="'+c.id+'"]'); if(s)s.textContent=n;
   }
+  const allS=document.querySelector('[data-cnt="__all__"]'); if(allS) allS.textContent=total;
 }
 async function switchCohort(cid){
-  activeCohort=cid; students=await loadStudents(cid); await sSet("activeCohort",cid);
+  activeCohort=cid; students=await loadActiveStudents(); await sSet("activeCohort",cid);
   selectedId=null; selected=new Set(); closeDrawer(); renderCohorts(); render();
 }
 function openCohort(){document.getElementById("newCohortName").value="";document.getElementById("cohortModal").classList.add("show");setTimeout(()=>document.getElementById("newCohortName").focus(),50);}
@@ -1353,7 +1367,8 @@ function renderReno(){
     const pill=o?'<span class="tag" style="'+statusFill(o.color)+'">'+esc(o.label)+'</span>':'<span class="stagepill">未設定狀態</span>';
     const rc=roleColor(p.role);
     const rolePill=p.role?'<span class="tag" style="'+statusFill(rc)+';margin-left:6px">'+esc(p.role)+'</span>':'';
-    const card=document.createElement("div"); card.className="propcard"; card.onclick=()=>openProperty(s.id,p.id);
+    const card=document.createElement("div"); card.className="propcard";
+    card.onclick = activeCohort==="__all__" ? (()=>openPropertyFromAll(s.__cohort,s.id,p.id)) : (()=>openProperty(s.id,p.id));
     const ob=p.old||{};
     const ownerLine=[s.name,p.price,ob.landBuild,ob.zoning].filter(Boolean).map(esc).join(" · ");
     card.innerHTML='<div class="addr">'+esc(p.address||"未填地址")+'</div>'+
@@ -1416,6 +1431,7 @@ function initAutoGrow(root){
 
 /* student drawer */
 function openDrawer(id){
+  if(activeCohort==="__all__"){ const s0=students.find(x=>x.id===id); if(s0&&s0.__cohort){ openStudentFromAll(s0.__cohort,id); return; } }
   selectedId=id; renoRef=null;
   const s=students.find(x=>x.id===id); if(!s)return;
   document.getElementById("dName").textContent=s.name;
@@ -1685,6 +1701,8 @@ function jvStageChange(){
   const v=(document.getElementById('rJVStage')||{}).value||'';
   ['1','2','3'].forEach(k=>{ const el=document.getElementById('rJVS'+k); if(el) el.style.display=(v==='stage'+k)?'block':'none'; });
 }
+async function openPropertyFromAll(cid,sid,pid){ if(activeCohort!==cid){ await switchCohort(cid); } openProperty(sid,pid); }
+async function openStudentFromAll(cid,id){ if(activeCohort!==cid){ await switchCohort(cid); } openDrawer(id); }
 function ownerSelect(id,curId){
   const list=students.slice().sort((a,b)=>(''+a.name).localeCompare(''+b.name,"zh-Hant"));
   return '<select class="din" id="'+id+'">'+list.map(s=>'<option value="'+s.id+'"'+(String(s.id)===String(curId)?' selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>';
@@ -1849,6 +1867,7 @@ async function deleteProperty(){
 /* add student */
 const ADD_FIELDS=[["name","姓名",true],["desiredCity","希望購入城市／區域"],["price","適合總價"],["downPayment","可運用自備款"],["currentCity","目前居住城市／區域"],["decisionMaker","共同決策者"],["job","工作"],["income","收入"],["ageRaw","年齡"],["readinessRaw","準備度（如 8分/10分）"],["action","下一步行動","","ta"],["notes","備註","","ta"]];
 function openAdd(){
+  if(activeCohort==="__all__"){ toast("「全部」為總覽檢視，請先切到指定班級再新增學員"); return; }
   document.getElementById("addFields").innerHTML=
     ADD_FIELDS.map(f=>'<div class="frow"><label>'+f[1]+(f[2]?' *':'')+'</label>'+(f[3]==="ta"?'<textarea id="add_'+f[0]+'" rows="2"></textarea>':'<input type="text" id="add_'+f[0]+'">')+'</div>').join("")+
     '<div class="grid2"><div class="frow"><label>名下房產</label><select id="add_hasProperty"><option value="">未設定</option><option>只有繼承的房子</option><option>有</option><option>無</option></select></div>'+
@@ -1907,6 +1926,7 @@ const IMP_TARGETS=[
 ];
 let importState={rows:[],headers:[],targetCohort:null,isNew:false,newName:""};
 function openImport(){
+  if(activeCohort==="__all__"){ toast("「全部」為總覽檢視，請先切到指定班級再匯入"); return; }
   importState={rows:[],headers:[],targetCohort:activeCohort,isNew:false,newName:""};
   const opts=cohorts.map(c=>'<option value="'+c.id+'"'+(c.id===activeCohort?' selected':'')+'>'+esc(c.name)+'</option>').join('');
   document.getElementById("impBody").innerHTML=
