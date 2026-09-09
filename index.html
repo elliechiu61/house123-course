@@ -415,8 +415,10 @@
   <div id="renoView" style="display:none">
     <div id="renoDash"></div>
     <div class="toolbar" style="margin-top:0">
-      <div class="fgrp"><label style="font-size:11px;font-weight:700;color:var(--muted)">改建階段</label>
-        <select id="fStage" onchange="renderReno()"><option value="all">全部階段</option></select></div>
+      <div class="fgrp"><label style="font-size:11px;font-weight:700;color:var(--muted)">持有標籤</label>
+        <select id="fHold" onchange="renderReno()"><option value="all">全部持有</option></select></div>
+      <div class="fgrp"><label style="font-size:11px;font-weight:700;color:var(--muted)">改建標籤</label>
+        <select id="fStage" onchange="renderReno()"><option value="all">全部改建</option></select></div>
       <div class="fgrp"><label style="font-size:11px;font-weight:700;color:var(--muted)">陪跑標籤</label>
         <select id="fRole" onchange="renderReno()"><option value="all">全部標籤</option><option value="純紀錄">純紀錄</option><option value="陪跑">陪跑</option><option value="主導">主導</option><option value="">未設定</option></select></div>
       <div class="spacer"></div>
@@ -909,7 +911,13 @@ async function delTag(id){
 
 /* filters */
 function buildRegionOptions(){document.getElementById("fRegion").innerHTML='<option value="all">全部</option>'+REGIONS.map(r=>'<option value="'+r+'">'+r+'</option>').join("");}
-function buildStageOptions(){const seen=new Set();const opts=PROP_STATUS.filter(o=>{if(seen.has(o.label))return false;seen.add(o.label);return true;}).map(o=>'<option value="'+o.label+'">'+o.label+'</option>').join("");document.getElementById("fStage").innerHTML='<option value="all">全部狀態</option>'+opts;}
+function buildStageOptions(){
+  const rOpts=renoStatuses().map(o=>'<option value="'+o.key+'">'+o.label+'</option>').join("");
+  const fs=document.getElementById("fStage"); if(fs) fs.innerHTML='<option value="all">全部改建</option>'+rOpts;
+  const grp=(n,a)=>a.length?'<optgroup label="'+n+'">'+a.map(o=>'<option value="'+o.key+'">'+o.label+'</option>').join('')+'</optgroup>':'';
+  const hOpts=HOLD_GROUPS.map(G=>grp(G.name,holdStatusesByGroup(G.key))).join('');
+  const fh=document.getElementById("fHold"); if(fh) fh.innerHTML='<option value="all">全部持有</option>'+hOpts;
+}
 function buildStatusFilterOptions(){
   const el=document.getElementById("fStatus"); if(!el) return;
   const grp=(n,a)=>'<optgroup label="'+n+'">'+a.map(o=>'<option value="'+o.key+'">'+o.label+'</option>').join('')+'</optgroup>';
@@ -1382,9 +1390,11 @@ function renderRenoDash(){
 function renderReno(){
   renderRenoDash();
   const stageF=document.getElementById("fStage").value;
+  const holdEl=document.getElementById("fHold"); const holdF=holdEl?holdEl.value:"all";
   const roleEl=document.getElementById("fRole"); const roleF=roleEl?roleEl.value:"all";
   let items=allProperties();
-  if(stageF!=="all") items=items.filter(x=>{const a=psById(x.p.status),b=psById(x.p.renoStatus);return (a&&a.label===stageF)||(b&&b.label===stageF);});
+  if(stageF!=="all") items=items.filter(x=>(x.p.renoStatus||"")===stageF);
+  if(holdF!=="all") items=items.filter(x=>(x.p.status||"")===holdF);
   if(roleF!=="all") items=items.filter(x=>(x.p.role||"")===roleF);
   const grid=document.getElementById("propgrid");
   document.getElementById("renoLine").innerHTML="共 <b>"+items.length+"</b> 件物件";
