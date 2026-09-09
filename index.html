@@ -692,6 +692,12 @@ function migrate(list){
       s.tagIds=t;
     }
     if(!Array.isArray(s.properties)) s.properties=[];
+    (s.properties||[]).forEach(p=>{
+      if(p.renoStatus===undefined){
+        const o=psById(p.status);
+        if(isRenoStatus(o)){ p.renoStatus=p.status; p.status=""; } else { p.renoStatus=""; }
+      }
+    });
     if(s.phone===undefined)s.phone=""; if(s.lineId===undefined)s.lineId=""; if(s.email===undefined)s.email="";
     if(s.courseRecord===undefined)s.courseRecord=""; if(s.status===undefined)s.status="";
     if(s.hasProperty==="沒有")s.hasProperty="無";
@@ -1005,11 +1011,34 @@ function propStatusSelect(id,cur){
   const groups=STATUS_GROUPS.map(G=>grp(G.name,PROP_STATUS.filter(o=>o.grp===G.key))).join('');
   return '<select class="din" id="'+id+'"><option value="">未設定</option>'+groups+'</select>';
 }
+/* 狀態拆兩維：改建（綠群＋已交屋）、持有（其餘） */
+function isRenoStatus(o){ return o && (o.grp==='g' || o.key==='pp_jw_g'); }
+function renoStatuses(){ return PROP_STATUS.filter(o=>o.grp==='g').concat(PROP_STATUS.filter(o=>o.key==='pp_jw_g')); }
+const HOLD_GROUPS=[
+  {key:'r', name:'紅 · 簽約/貸款/交屋', color:'#C0392B'},
+  {key:'y', name:'黃 · 裝潢/出租',      color:'#C08A10'},
+  {key:'dg',name:'深綠 · 出售/自用',    color:'#164D32'}
+];
+function holdStatusesByGroup(g){ return PROP_STATUS.filter(o=>o.grp===g && o.key!=='pp_jw_g'); }
+function renoStatusSelect(id,cur){
+  const opts=renoStatuses().map(o=>'<option value="'+o.key+'"'+(o.key===cur?' selected':'')+'>'+o.label+'</option>').join('');
+  return '<select class="din" id="'+id+'"><option value="">未設定</option>'+opts+'</select>';
+}
+function holdStatusSelect(id,cur){
+  const grp=(n,a)=>a.length?'<optgroup label="'+n+'">'+a.map(o=>'<option value="'+o.key+'"'+(o.key===cur?' selected':'')+'>'+o.label+'</option>').join('')+'</optgroup>':'';
+  const groups=HOLD_GROUPS.map(G=>grp(G.name,holdStatusesByGroup(G.key))).join('');
+  return '<select class="din" id="'+id+'"><option value="">未設定</option>'+groups+'</select>';
+}
+function pipeCol(name,color,statuses,statusCount,headerCount){
+  const rows=statuses.map(o=>{const c=statusCount[o.key]||0;return '<div class="piperow'+(c?'':' zero')+'"><span class="pk"><span class="dot" style="background:'+o.color+'"></span>'+esc(o.label)+'</span><span class="pn">'+c+'</span></div>';}).join('');
+  return '<div class="pipecol"><div class="ph" style="background:'+color+'"><span>'+esc(name)+'</span><span class="pc">'+(headerCount||0)+'</span></div><div class="pb">'+rows+'</div></div>';
+}
 function renderPropCell(s){
   const ps=(s.properties||[]);
   if(!ps.length) return '<span style="color:var(--muted)">—</span>';
-  return ps.map(p=>{const o=psById(p.status);
-    const st=o?'<span class="tag" style="'+statusFill(o.color)+';padding:1px 6px;font-size:10.5px">'+esc(o.label)+'</span>':'';
+  return ps.map(p=>{const oh=psById(p.status), orn=psById(p.renoStatus);
+    const tag=o=>o?'<span class="tag" style="'+statusFill(o.color)+';padding:1px 6px;font-size:10.5px;margin-left:4px">'+esc(o.label)+'</span>':'';
+    const st=tag(oh)+tag(orn);
     const hd=p.handoverDate?'<span style="color:var(--muted)"> · '+esc(p.handoverDate)+'</span>':'';
     return '<div class="propchip" title="前往物件改建專區" onclick="event.stopPropagation();gotoReno(\''+s.id+'\',\''+p.id+'\')"><span class="pa">'+esc(p.address||'未填地址')+'</span>'+hd+' '+st+'</div>';
   }).join('');
@@ -1333,38 +1362,39 @@ function donutSvg(segs,total){
 function renderRenoDash(){
   const el=document.getElementById("renoDash"); if(!el) return;
   const all=allProperties(); const total=all.length;
-  const gc={r:0,y:0,g:0,dg:0}, statusCount={}; let sumPrice=0;
+  const hc={r:0,y:0,dg:0}, statusCount={}; let renoCount=0, sumPrice=0;
   all.forEach(({p})=>{
-    const o=psById(p.status);
-    if(o){ gc[o.grp]=(gc[o.grp]||0)+1; statusCount[o.key]=(statusCount[o.key]||0)+1; }
+    const oh=psById(p.status);
+    if(oh){ if(hc[oh.grp]!=null) hc[oh.grp]++; statusCount[oh.key]=(statusCount[oh.key]||0)+1; }
+    const orn=psById(p.renoStatus);
+    if(orn){ renoCount++; statusCount[orn.key]=(statusCount[orn.key]||0)+1; }
     const n=pnum(p.price); if(n) sumPrice+=n;
   });
+  const holdTotal=hc.r+hc.y+hc.dg;
   const priceLabel = sumPrice>=10000 ? (sumPrice/10000).toFixed(2)+' 億' : (sumPrice? Math.round(sumPrice)+' 萬' : '—');
-  const kpis='<div class="kpis">'+kpi(total,'物件總數')+
-    STATUS_GROUPS.map(G=>kpiColor(gc[G.key]||0, G.name.split(' · ')[0]+' 群', G.color)).join('')+
-    kpi(priceLabel,'成交總價加總（約估）')+'</div>';
-  const pipe='<div class="pipe">'+STATUS_GROUPS.map(G=>{
-    const rows=PROP_STATUS.filter(o=>o.grp===G.key).map(o=>{const c=statusCount[o.key]||0;
-      return '<div class="piperow'+(c?'':' zero')+'"><span class="pk"><span class="dot" style="background:'+o.color+'"></span>'+esc(o.label)+'</span><span class="pn">'+c+'</span></div>';}).join('');
-    return '<div class="pipecol"><div class="ph" style="background:'+G.color+'"><span>'+esc(G.name)+'</span><span class="pc">'+(gc[G.key]||0)+'</span></div><div class="pb">'+rows+'</div></div>';
-  }).join('')+'</div>';
-  const donut=donutSvg(STATUS_GROUPS.map(G=>({label:G.name.split(' · ')[0],value:gc[G.key]||0,color:G.color})),total);
-  el.innerHTML='<div class="rdash">'+kpis+pipe+'<div class="statgrid"><div class="panel"><h3>物件階段分佈</h3>'+donut+'</div></div></div>';
+  const kpis='<div class="kpis">'+kpi(total,'物件總數')+kpiColor(renoCount,'改建中','#3D9669')+kpi(holdTotal,'持有中')+kpi(priceLabel,'成交總價加總（約估）')+'</div>';
+  const colReno=pipeCol('改建進度','#3D9669',renoStatuses(),statusCount,renoCount);
+  const colsHold=HOLD_GROUPS.map(G=>pipeCol(G.name,G.color,holdStatusesByGroup(G.key),statusCount,hc[G.key]||0)).join('');
+  const pipe='<div class="pipe">'+colReno+colsHold+'</div>';
+  const donut=donutSvg(HOLD_GROUPS.map(G=>({label:G.name.split(' · ')[0],value:hc[G.key]||0,color:G.color})),holdTotal);
+  el.innerHTML='<div class="rdash">'+kpis+pipe+'<div class="statgrid"><div class="panel"><h3>持有狀態分佈</h3>'+donut+'</div></div></div>';
 }
 function renderReno(){
   renderRenoDash();
   const stageF=document.getElementById("fStage").value;
   const roleEl=document.getElementById("fRole"); const roleF=roleEl?roleEl.value:"all";
   let items=allProperties();
-  if(stageF!=="all") items=items.filter(x=>{const o=psById(x.p.status);return o&&o.label===stageF;});
+  if(stageF!=="all") items=items.filter(x=>{const a=psById(x.p.status),b=psById(x.p.renoStatus);return (a&&a.label===stageF)||(b&&b.label===stageF);});
   if(roleF!=="all") items=items.filter(x=>(x.p.role||"")===roleF);
   const grid=document.getElementById("propgrid");
   document.getElementById("renoLine").innerHTML="共 <b>"+items.length+"</b> 件物件";
   document.getElementById("renoEmpty").style.display=items.length?"none":"block";
   grid.innerHTML="";
   items.forEach(({s,p})=>{
-    const o=psById(p.status);
-    const pill=o?'<span class="tag" style="'+statusFill(o.color)+'">'+esc(o.label)+'</span>':'<span class="stagepill">未設定狀態</span>';
+    const oh=psById(p.status), orn=psById(p.renoStatus);
+    const holdPill=oh?'<span class="tag" style="'+statusFill(oh.color)+'">'+esc(oh.label)+'</span>':'';
+    const renoPill=orn?'<span class="tag" style="'+statusFill(orn.color)+(oh?';margin-left:6px':'')+'">'+esc(orn.label)+'</span>':'';
+    const pill=(holdPill+renoPill)||'<span class="stagepill">未設定狀態</span>';
     const rc=roleColor(p.role);
     const rolePill=p.role?'<span class="tag" style="'+statusFill(rc)+';margin-left:6px">'+esc(p.role)+'</span>':'';
     const card=document.createElement("div"); card.className="propcard";
@@ -1492,7 +1522,8 @@ function openDrawer(id){
   initAutoGrow(document.getElementById("dBody"));
 }
 function propRow(sid,p){
-  const o=psById(p.status); const st=o?esc(o.label):"未設定";
+  const oh=psById(p.status), orn=psById(p.renoStatus);
+  const st=[oh&&oh.label,orn&&orn.label].filter(Boolean).map(esc).join("、")||"未設定";
   return '<div class="prow"><div class="ptop"><div><div class="paddr">'+esc(p.address||"未填地址")+'</div>'+
     '<div class="pmeta">'+st+(p.handoverDate?' · 交屋 '+esc(p.handoverDate):'')+(p.price?' · '+esc(p.price):'')+'</div></div>'+
     '<button class="goreno" onclick="event.stopPropagation();gotoReno(\''+sid+'\',\''+p.id+'\')">改建專區 →</button></div></div>';
@@ -1715,7 +1746,10 @@ function openProperty(sid,pid){
   document.getElementById("dName").textContent=p.address||"未填地址";
   document.getElementById("dMeta").textContent="屋主："+s.name;
   document.getElementById("dBody").innerHTML=
-    '<div class="track"><h4>物件狀態</h4>'+propStatusSelect("rStatus",p.status||"")+'</div>'+
+    '<div class="track"><h4>狀態標籤</h4>'+
+      '<div class="miniL">持有標籤</div>'+holdStatusSelect("rStatus",p.status||"")+
+      '<div class="miniL" style="margin-top:8px">改建標籤</div>'+renoStatusSelect("rRenoStatus",p.renoStatus||"")+
+    '</div>'+
     '<div class="track"><h4>陪跑標籤</h4>'+renoRoleSelect("rRole",p.role||"")+'</div>'+
     '<div class="track"><h4>屋主</h4>'+ownerSelect("rOwner",s.id)+'<div style="color:var(--muted);font-size:12px;margin-top:6px">改成其他學員並按「儲存變更」，即可把此物件搬到該學員名下。</div></div>'+
     '<div class="track"><h4>物件資料</h4>'+
@@ -1832,7 +1866,7 @@ async function saveProperty(){
   const s=students.find(x=>x.id===renoRef.sid); const p=(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p)return;
   normalizeUnitFields(document.getElementById("dBody"));
   const g=id=>{const e=document.getElementById(id);return e?e.value:"";};
-  p.status=g("rStatus"); p.role=g("rRole"); p.address=g("rAddr").trim(); p.contractDate=g("rContract").trim(); p.handoverDate=g("rHandover").trim();
+  p.status=g("rStatus"); p.renoStatus=g("rRenoStatus"); p.role=g("rRole"); p.address=g("rAddr").trim(); p.contractDate=g("rContract").trim(); p.handoverDate=g("rHandover").trim();
   p.agent=g("rAgent").trim(); p.registrant=g("rRegistrant").trim(); p.price=g("rPrice").trim(); p.renovNote=g("rNote");
   p.reno=g("rReno");
   p.taxes={feeAgent:g("tFeeAgent"),deed:g("tDeed"),stamp:g("tStamp"),scriv:g("tScriv"),reg:g("tReg"),trans:g("tTrans"),escrow:g("tEscrow")};
