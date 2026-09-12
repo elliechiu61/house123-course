@@ -286,6 +286,13 @@
   .consult .cc{white-space:pre-wrap;font-size:13.5px}
   .todoitem{display:flex;align-items:center;gap:8px;border:1px solid var(--line-soft);border-radius:9px;padding:8px 10px;margin-bottom:7px;background:#fff}
   .todoitem label{display:flex;align-items:center;gap:9px;flex:1;cursor:pointer;font-size:13.5px;font-weight:600}
+  .todofab{position:absolute;right:22px;bottom:82px;z-index:6;background:var(--brand);color:#fff;border:none;border-radius:24px;padding:12px 20px;font-weight:800;font-size:14px;box-shadow:0 6px 20px rgba(16,35,46,.3);cursor:pointer}
+  .todofab:hover{filter:brightness(1.1)}
+  .todotabs{display:flex;gap:8px;margin-bottom:14px}
+  .ttab{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:9px;padding:8px 16px;font-weight:700;font-size:13px;cursor:pointer}
+  .ttab.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .duetag{color:var(--muted);font-size:12px;margin-left:6px}
+  .duetag.over{color:var(--danger);font-weight:700}
   .todoitem.done label span{text-decoration:line-through;color:var(--muted);font-weight:500}
   .todoitem .tdel{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:6px}
   .todoitem .tdel:hover{background:#FBEAE7;color:#B3402E}
@@ -442,8 +449,23 @@
   <div class="dhead"><div><h2 id="dName"></h2><div class="meta" id="dMeta"></div></div>
     <button class="dclose" onclick="closeDrawer()">✕</button></div>
   <div class="dbody" id="dBody"></div>
+  <button class="todofab" onclick="openTodoAdd()" title="新增待辦">＋ 待辦</button>
   <div class="dfoot" id="dFoot"></div>
 </div>
+
+<!-- Add todo modal -->
+<div class="modal" id="todoAddModal"><div class="box">
+  <div class="mh"><span>新增待辦</span><button class="dclose" style="background:var(--line-soft);color:var(--ink)" onclick="closeTodoAdd()">✕</button></div>
+  <div class="mb">
+    <div id="todoAddCtx" style="color:var(--muted);font-size:13px;margin-bottom:12px;line-height:1.6"></div>
+    <div id="todoAddQuick" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
+    <div class="miniL">待辦內容</div>
+    <textarea class="din" id="todoAddText" style="min-height:60px" placeholder="輸入待辦內容…"></textarea>
+    <div class="miniL" style="margin-top:10px">到期日</div>
+    <input class="din" type="date" id="todoAddDue">
+  </div>
+  <div class="mf"><button class="btn primary" onclick="submitTodoAdd()">加入待辦</button><button class="btn ghost" onclick="closeTodoAdd()">取消</button></div>
+</div></div>
 
 <!-- Add student modal -->
 <div class="modal" id="addModal"><div class="box">
@@ -1254,7 +1276,7 @@ async function submitBulkTodo(preset){
 function todoListHtml(s){
   const a=s.todos||[];
   if(!a.length) return '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">尚無待辦</div>';
-  return a.map(t=>'<div class="todoitem'+(t.done?" done":"")+'"><label><input type="checkbox" '+(t.done?"checked":"")+' onchange="toggleTodo(\''+t.id+'\')"><span>'+esc(t.text)+'</span></label><button class="tdel" title="刪除" onclick="deleteTodo(\''+t.id+'\')">\u2715</button></div>').join("");
+  return a.map(t=>'<div class="todoitem'+(t.done?" done":"")+'"><label><input type="checkbox" '+(t.done?"checked":"")+' onchange="toggleTodo(\''+t.id+'\')"><span>'+esc(t.text)+dueTag(t.due)+'</span></label><button class="tdel" title="刪除" onclick="deleteTodo(\''+t.id+'\')">\u2715</button></div>').join("");
 }
 async function addTodo(){
   const s=students.find(x=>x.id===selectedId); if(!s)return;
@@ -1273,6 +1295,73 @@ async function deleteTodo(tid){
   s.todos=(s.todos||[]).filter(x=>x.id!==tid);
   collectDrawerFields(s); await saveStudents(); openDrawer(s.id);
 }
+/* 到期日標籤 */
+function dueTag(due){
+  if(!due) return '';
+  const today=new Date().toISOString().slice(0,10);
+  const over=due<today;
+  return '<span class="duetag'+(over?' over':'')+'">·到期 '+esc(due)+(over?'（逾期）':'')+'</span>';
+}
+/* 浮動「＋待辦」視窗（依目前開啟的是學員或物件抽屜自動帶入） */
+let todoAddKind=null;
+function openTodoAdd(){
+  const ctx=document.getElementById("todoAddCtx"), quick=document.getElementById("todoAddQuick");
+  document.getElementById("todoAddText").value=""; document.getElementById("todoAddDue").value="";
+  if(renoRef){
+    const s=students.find(x=>x.id===renoRef.sid); const p=s&&(s.properties||[]).find(x=>x.id===renoRef.pid);
+    if(!p){ toast("找不到物件"); return; }
+    todoAddKind="prop";
+    ctx.innerHTML='物件：'+esc(p.address||"未填地址")+(p.registrant?'<br>登記人：'+esc(p.registrant):'');
+    quick.innerHTML="";
+  } else if(selectedId!=null){
+    const s=students.find(x=>x.id===selectedId); if(!s){ toast("找不到學員"); return; }
+    todoAddKind="student";
+    ctx.innerHTML='學員：'+esc(s.name);
+    quick.innerHTML=TODO_QUICK.map(q=>'<button type="button" class="btag qk" onclick="document.getElementById(\'todoAddText\').value='+JSON.stringify(q)+'">快捷：'+esc(q)+'</button>').join("");
+  } else { return; }
+  document.getElementById("todoAddModal").classList.add("show");
+  setTimeout(()=>document.getElementById("todoAddText").focus(),50);
+}
+function closeTodoAdd(){ document.getElementById("todoAddModal").classList.remove("show"); }
+async function submitTodoAdd(){
+  const text=document.getElementById("todoAddText").value.trim(); if(!text){ toast("請輸入待辦內容"); return; }
+  const due=document.getElementById("todoAddDue").value||"";
+  const today=new Date().toISOString().slice(0,10);
+  if(todoAddKind==="prop"){
+    const s=students.find(x=>x.id===renoRef.sid); const p=s&&(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p)return;
+    p.todos=p.todos||[]; p.todos.push({id:"pt"+Date.now(),text,due,done:false,date:today});
+    await saveStudents(); closeTodoAdd(); openProperty(s.id,p.id); toast("已新增待辦");
+  } else {
+    const s=students.find(x=>x.id===selectedId); if(!s)return;
+    collectDrawerFields(s); s.todos=s.todos||[]; s.todos.push({id:"td"+Date.now(),text,due,done:false,date:today});
+    await saveStudents(); closeTodoAdd(); openDrawer(s.id); toast("已新增待辦");
+  }
+}
+/* 物件待辦：抽屜內清單 + 開關/刪除 */
+function propTodoHtml(p){
+  const a=p.todos||[];
+  if(!a.length) return '<div style="color:var(--muted);font-size:13px">尚無待辦（按右下「＋ 待辦」新增）</div>';
+  return a.map(t=>'<div class="todoitem'+(t.done?" done":"")+'"><label><input type="checkbox" '+(t.done?"checked":"")+' onchange="togglePropTodo(\''+t.id+'\')"><span>'+esc(t.text)+dueTag(t.due)+'</span></label><button class="tdel" title="刪除" onclick="deletePropTodo(\''+t.id+'\')">✕</button></div>').join("");
+}
+async function togglePropTodo(tid){ const s=students.find(x=>x.id===renoRef.sid); const p=s&&(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p)return; const t=(p.todos||[]).find(x=>x.id===tid); if(!t)return; t.done=!t.done; await saveStudents(); openProperty(s.id,p.id); }
+async function deletePropTodo(tid){ const s=students.find(x=>x.id===renoRef.sid); const p=s&&(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p)return; p.todos=(p.todos||[]).filter(x=>x.id!==tid); await saveStudents(); openProperty(s.id,p.id); }
+/* 跨班級 mutate（待辦總表用） */
+async function propTodoMutate(cohortId,studentId,propId,fn){
+  const inMem=cohortId===activeCohort; const list=inMem?students:await loadStudents(cohortId);
+  const s=list.find(x=>String(x.id)===String(studentId)); if(!s)return;
+  const p=(s.properties||[]).find(x=>String(x.id)===String(propId)); if(!p)return;
+  p.todos=p.todos||[]; fn(p);
+  if(inMem){ await saveStudents(); } else { await sSet("students:"+cohortId,JSON.stringify(list)); }
+  renderTodoView();
+}
+function togglePropTodoGlobal(cid,sid,pid,tid,checked){ propTodoMutate(cid,sid,pid,p=>{const t=p.todos.find(z=>z.id===tid);if(t)t.done=checked;}); }
+function editPropTodoGlobal(cid,sid,pid,tid,val){ propTodoMutate(cid,sid,pid,p=>{const t=p.todos.find(z=>z.id===tid);if(t)t.text=val;}); }
+function deletePropTodoGlobal(cid,sid,pid,tid){ if(!confirm("刪除此待辦？"))return; propTodoMutate(cid,sid,pid,p=>{p.todos=p.todos.filter(z=>z.id!==tid);}); }
+function setPropTodoDue(cid,sid,pid,tid,val){ propTodoMutate(cid,sid,pid,p=>{const t=p.todos.find(z=>z.id===tid);if(t)t.due=val;}); }
+function setStudentTodoDue(cid,sid,tid,val){ todoMutate(cid,sid,x=>{const t=(x.todos||[]).find(z=>z.id===tid);if(t)t.due=val;}); }
+let todoTab='student';
+function setTodoTab(t){ todoTab=t; renderTodoView(); }
+function dueCmp(a,b){ if(!a&&!b)return 0; if(!a)return 1; if(!b)return -1; return a<b?-1:(a>b?1:0); }
 async function todoMutate(cohortId,studentId,fn){
   const inMem=cohortId===activeCohort;
   const list=inMem?students:await loadStudents(cohortId);
@@ -1298,45 +1387,49 @@ function editTodoGlobal(cid,sid,tid,val){ todoMutate(cid,sid,x=>{const t=x.todos
 async function renderTodoView(){
   const el=document.getElementById("todoView"); if(!el)return;
   el.innerHTML='<div class="resultline" style="margin-top:0">載入待辦…</div>';
-  const rows=[];
+  const stuRows=[], propRows=[];
   for(const c of cohorts){
     const list=c.id===activeCohort?students:await loadStudents(c.id);
-    list.forEach(s=>{ (s.todos||[]).forEach(t=>rows.push({c,s,t})); });
+    list.forEach(s=>{
+      (s.todos||[]).forEach(t=>stuRows.push({c,s,t}));
+      (s.properties||[]).forEach(p=>(p.todos||[]).forEach(t=>propRows.push({c,s,p,t})));
+    });
   }
-  rows.sort((a,b)=>(a.t.done-b.t.done)|| (''+a.c.name).localeCompare(''+b.c.name,"zh-Hant"));
-  const open=rows.filter(r=>!r.t.done).length;
-  let html='<div class="resultline" style="margin-top:0">學員待辦項目 · 共 <b>'+rows.length+'</b> 筆（未完成 <b>'+open+'</b>）</div>';
-  if(!rows.length){ el.innerHTML=html+'<div class="empty"><b>目前沒有待辦</b>到學員列表勾選學員按「＋ 新增待辦」，或在學員檔案裡新增</div>'; return; }
+  const sortFn=(a,b)=>(a.t.done-b.t.done)||dueCmp(a.t.due,b.t.due);
+  stuRows.sort(sortFn); propRows.sort(sortFn);
+  const openStu=stuRows.filter(r=>!r.t.done).length, openProp=propRows.filter(r=>!r.t.done).length;
+  let html='<div class="todotabs">'+
+    '<button class="ttab'+(todoTab==="student"?" on":"")+'" onclick="setTodoTab(\'student\')">學員待辦（'+openStu+'）</button>'+
+    '<button class="ttab'+(todoTab==="prop"?" on":"")+'" onclick="setTodoTab(\'prop\')">物件待辦（'+openProp+'）</button>'+
+  '</div>';
+  const isStu=todoTab!=="prop";
+  const rows=isStu?stuRows:propRows;
+  if(!rows.length){ el.innerHTML=html+'<div class="empty"><b>目前沒有待辦</b>打開'+(isStu?'學員':'物件')+'後，按右下角「＋ 待辦」新增</div>'; return; }
   html+='<div class="tablecard"><table class="tbl"><thead><tr>'+
-    '<th style="width:32px"></th><th style="width:2.5em">班別</th><th style="min-width:5.5em">姓名</th><th>英文</th><th>Line ID</th><th>待辦內容</th><th>Status</th>'+
-    '<th class="cell-hide">居住地區</th><th>希望購入</th><th class="cell-hide">適合總價</th><th>房產</th><th>房貸</th><th>準備度</th><th class="cell-hide">物件</th>'+
+    '<th style="width:32px"></th><th style="width:150px">到期日</th><th style="min-width:8em">'+(isStu?'學員':'物件／登記人')+'</th><th>待辦內容</th>'+
     '</tr></thead><tbody>';
-  rows.forEach(({c,s,t})=>{
-    const so=ssById(s.status);
-    const props=(s.properties||[]).map(p=>esc(p.address||"")).filter(Boolean).join("、")||"—";
-    const propClass=["有","只有繼承的房子"].includes(s.hasProperty)?"y":((s.hasProperty==="無"||s.hasProperty==="沒有")?"n":"");
-    const mortClass=(s.hasMortgage&&s.hasMortgage!=="無"&&s.hasMortgage!=="未填")?"y":(s.hasMortgage==="無"?"n":"");
-    html+='<tr'+(t.done?' style="opacity:.5"':'')+'>'+
-      '<td><input type="checkbox" '+(t.done?"checked":"")+' onchange="toggleTodoGlobal(\''+c.id+'\','+s.id+',\''+t.id+'\',this.checked)"></td>'+
-      '<td title="'+esc(c.name)+'">'+esc(cohortShort(c.name))+'</td>'+
-      '<td style="cursor:pointer;color:var(--brand);font-weight:700;min-width:5.5em;white-space:normal" onclick="openStudentFrom(\''+c.id+'\','+s.id+')">'+esc(s.name)+'</td>'+
-      '<td>'+esc(s.englishName||"—")+'</td>'+
-      '<td>'+esc(s.lineId||"—")+'</td>'+
-      '<td><div style="display:flex;align-items:flex-start;gap:6px"><textarea class="din agrow" rows="1" style="min-width:190px;resize:none'+(t.done?';text-decoration:line-through;color:var(--muted)':'')+'" oninput="autoGrow(this)" onchange="editTodoGlobal(\''+c.id+'\','+s.id+',\''+t.id+'\',this.value)">'+esc(t.text)+'</textarea><button class="tdel" title="刪除" onclick="deleteTodoGlobal(\''+c.id+'\','+s.id+',\''+t.id+'\')">\u2715</button></div></td>'+
-      '<td>'+todoStatusSelect(c.id,s.id,s.status||"")+'</td>'+
-      '<td class="cell-hide"><div class="cell-wrap">'+esc(s.currentCity||"—")+'</div></td>'+
-      '<td><div class="cell-wrap">'+esc(s.desiredCity||"—")+'</div></td>'+
-      '<td class="cell-hide"><div class="price-wrap">'+esc(s.price||"—")+'</div></td>'+
-      '<td><span class="yn '+propClass+'">'+shortProp(s.hasProperty)+'</span></td>'+
-      '<td><span class="yn '+mortClass+'">'+shortMort(s.hasMortgage)+'</span></td>'+
-      '<td>'+(s.readiness!=null?('<b>'+s.readiness+'</b>'):esc(s.readinessRaw||"—"))+'</td>'+
-      '<td class="cell-hide"><div class="cell-wrap" style="max-width:12em">'+props+'</div></td>'+
+  rows.forEach(r=>{
+    const c=r.c, s=r.s, t=r.t, done=t.done;
+    const dueOn=isStu?('setStudentTodoDue(\''+c.id+'\','+s.id+',\''+t.id+'\',this.value)'):('setPropTodoDue(\''+c.id+'\','+s.id+',\''+r.p.id+'\',\''+t.id+'\',this.value)');
+    const chkOn=isStu?('toggleTodoGlobal(\''+c.id+'\','+s.id+',\''+t.id+'\',this.checked)'):('togglePropTodoGlobal(\''+c.id+'\','+s.id+',\''+r.p.id+'\',\''+t.id+'\',this.checked)');
+    const delOn=isStu?('deleteTodoGlobal(\''+c.id+'\','+s.id+',\''+t.id+'\')'):('deletePropTodoGlobal(\''+c.id+'\','+s.id+',\''+r.p.id+'\',\''+t.id+'\')');
+    const editOn=isStu?('editTodoGlobal(\''+c.id+'\','+s.id+',\''+t.id+'\',this.value)'):('editPropTodoGlobal(\''+c.id+'\','+s.id+',\''+r.p.id+'\',\''+t.id+'\',this.value)');
+    let owner;
+    if(isStu){ owner='<span style="cursor:pointer;color:var(--brand);font-weight:700" onclick="openStudentFrom(\''+c.id+'\','+s.id+')">'+esc(s.name)+'</span><div style="color:var(--muted);font-size:11.5px">'+esc(cohortShort(c.name))+'班</div>'; }
+    else { owner='<span style="cursor:pointer;color:var(--brand);font-weight:700" onclick="openPropertyFromAllTab(\''+c.id+'\','+s.id+',\''+r.p.id+'\')">'+esc(r.p.address||"未填地址")+'</span><div style="color:var(--muted);font-size:11.5px">'+esc(r.p.registrant||s.name||"")+'</div>'; }
+    const overdue=t.due && !done && t.due<new Date().toISOString().slice(0,10);
+    html+='<tr'+(done?' style="opacity:.5"':(overdue?' style="background:#FCEDEB"':''))+'>'+
+      '<td><input type="checkbox" '+(done?"checked":"")+' onchange="'+chkOn+'"></td>'+
+      '<td><input class="din" type="date" style="min-width:140px" value="'+esc(t.due||"")+'" onchange="'+dueOn+'"></td>'+
+      '<td>'+owner+'</td>'+
+      '<td><div style="display:flex;align-items:flex-start;gap:6px"><textarea class="din agrow" rows="1" style="min-width:200px;resize:none'+(done?';text-decoration:line-through;color:var(--muted)':'')+'" oninput="autoGrow(this)" onchange="'+editOn+'">'+esc(t.text)+'</textarea><button class="tdel" title="刪除" onclick="'+delOn+'">✕</button></div></td>'+
       '</tr>';
   });
   html+='</tbody></table></div>';
   el.innerHTML=html;
   initAutoGrow(el);
 }
+async function openPropertyFromAllTab(cid,sid,pid){ if(activeCohort!==cid){ await switchCohort(cid); } setView("reno"); setTimeout(()=>openProperty(sid,pid),80); }
 async function openStudentFrom(cohortId,studentId){
   if(cohortId!==activeCohort){ await switchCohort(cohortId); }
   setTimeout(()=>openDrawer(studentId),60);
@@ -1495,9 +1588,7 @@ function openDrawer(id){
     '</div>'+
     '<div class="track"><h4>Status</h4>'+studentStatusSelect("dStatus",s.status||"")+'</div>'+
     
-    '<div class="track"><h4>待辦事項</h4>'+todoListHtml(s)+
-      '<div style="display:flex;gap:8px;margin-top:8px"><input class="din" id="dTodoNew" placeholder="新增待辦…" onkeydown="if(event.key===\'Enter\')addTodo()"><button class="btn primary sm" onclick="addTodo()">＋</button></div>'+
-    '</div>'+
+    '<div class="track"><h4>待辦事項</h4>'+todoListHtml(s)+'</div>'+
     '<div class="track"><h4>諮詢紀錄</h4>'+consultListHtml(s)+
       '<div style="border-top:1px solid var(--line-soft);padding-top:10px;margin-top:4px">'+
       '<div class="grid2"><div><div class="miniL">日期</div><input class="din" id="cDate" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
@@ -1762,6 +1853,7 @@ function openProperty(sid,pid){
     '</div>'+
     '<div class="track"><h4>陪跑標籤</h4>'+renoRoleSelect("rRole",p.role||"")+'</div>'+
     '<div class="track"><h4>屋主</h4>'+ownerSelect("rOwner",s.id)+'<div style="color:var(--muted);font-size:12px;margin-top:6px">改成其他學員並按「儲存變更」，即可把此物件搬到該學員名下。</div></div>'+
+    '<div class="track"><h4>待辦事項</h4>'+propTodoHtml(p)+'</div>'+
     '<div class="track"><h4>物件資料</h4>'+
       '<div class="miniL">地址</div><input class="din" id="rAddr" value="'+esc(p.address||"")+'">'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">簽約日期</div><input class="din" id="rContract" value="'+esc(p.contractDate||"")+'" placeholder="2026/03"></div>'+
