@@ -1308,7 +1308,8 @@ function dueTag(due){
 let todoAddKind=null;
 function openTodoAdd(){
   const ctx=document.getElementById("todoAddCtx"), quick=document.getElementById("todoAddQuick");
-  document.getElementById("todoAddText").value=""; document.getElementById("todoAddDue").value="";
+  const td=new Date(), todayStr=td.getFullYear()+"-"+String(td.getMonth()+1).padStart(2,"0")+"-"+String(td.getDate()).padStart(2,"0");
+  document.getElementById("todoAddText").value=""; document.getElementById("todoAddDue").value=todayStr;
   if(renoRef){
     const s=students.find(x=>x.id===renoRef.sid); const p=s&&(s.properties||[]).find(x=>x.id===renoRef.pid);
     if(!p){ toast("找不到物件"); return; }
