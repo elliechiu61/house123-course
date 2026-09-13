@@ -1756,6 +1756,7 @@ function parcelBlockHTML(pc){ pc=pc||{};
   '</div>';
 }
 function addParcel(){ const box=document.getElementById("extraParcels"); if(!box) return; box.insertAdjacentHTML("beforeend",parcelBlockHTML({})); }
+function show04(){ const box=document.getElementById("loan04Box"), btn=document.getElementById("add04Btn"); if(box) box.style.display=""; if(btn) btn.style.display="none"; const f=document.getElementById("l4Bank"); if(f) f.focus(); recalcProp(); }
 function collectParcels(){ return [...document.querySelectorAll("#extraParcels .parcelRow")].map(r=>({
     landBuild:(r.querySelector('[data-p=landBuild]')||{}).value||"",
     zoning:(r.querySelector('[data-p=zoning]')||{}).value||"",
@@ -1792,7 +1793,8 @@ function recalcProp(){
   const ml=loanMonthlyById("l1")+loanMonthlyById("l4");
   setT("cMonthlyLoan",ml);
   const g1=pWithin(g("l1GraceS"),g("l1GraceE")), g4=pWithin(g("l4GraceS"),g("l4GraceE"));
-  const gm=document.getElementById("cLoanMode"); if(gm) gm.textContent="（科目01："+(g1?"寬限期·利息":"本息")+"、科目04："+(g4?"寬限期·利息":"本息")+"）";
+  const b04=document.getElementById("loan04Box"), show04Mode=b04&&b04.style.display!=="none";
+  const gm=document.getElementById("cLoanMode"); if(gm) gm.textContent="（科目01："+(g1?"寬限期·利息":"本息")+(show04Mode?("、科目04："+(g4?"寬限期·利息":"本息")):"")+"）";
   const netRent=pnum(g("rRentGross"))-pnum(g("rRentMgmt"));
   setT("cNetRent",netRent); setT("cCashflow",netRent-ml);
 }
@@ -1873,6 +1875,7 @@ function openProperty(sid,pid){
   const p=(s.properties||[]).find(x=>String(x.id)===String(pid)); if(!p)return;
   renoRef={sid:s.id,pid:p.id}; selectedId=null;
   const tx=p.taxes||{},l1=p.loan01||{},l4=p.loan04||{},rt=p.rent||{},ob=p.old||{};
+  const has04=Object.values(l4).some(v=>v&&String(v).trim());   // 有週轉金才顯示科目04
   document.getElementById("dName").textContent=p.address||"未填地址";
   document.getElementById("dMeta").textContent="屋主："+s.name;
   document.getElementById("dBody").innerHTML=
@@ -1933,7 +1936,8 @@ function openProperty(sid,pid){
       '<div class="grid2" style="margin-top:8px">'+pIn("寬限期起","l1GraceS",l1.graceStart,'placeholder="2026/03" oninput="recalcProp()"')+pIn("寬限期迄","l1GraceE",l1.graceEnd,'placeholder="2029/03" oninput="recalcProp()"')+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("利息／月","l1Int",l1.interestPM,unitAttr("萬")+' oninput="recalcProp()"')+pIn("本息／月","l1PI",l1.piPM,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
       '</div>'+
-      '<div class="loanbox" style="border-color:#B0771C">'+
+      '<div id="add04Btn" style="'+(has04?'display:none':'')+'"><button type="button" class="btn" style="margin-top:10px" onclick="show04()">＋ 新增科目04（週轉金）</button></div>'+
+      '<div class="loanbox" id="loan04Box" style="border-color:#B0771C'+(has04?'':';display:none')+'">'+
       '<div class="loanhd" style="background:#B0771C">科目04（週轉金）</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("銀行","l4Bank",l4.bank)+pIn("金額","l4Amt",l4.amount,unitAttr("萬"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("貸款年限","l4Years",l4.years,unitAttr("年"))+pIn("利率","l4Rate",l4.rate,unitAttr("%"))+'</div>'+
