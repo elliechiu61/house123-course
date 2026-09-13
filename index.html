@@ -1739,6 +1739,27 @@ async function submitProp(){
 /* renovation property drawer */
 function gotoReno(sid,pid){ closeDrawer(); setView("reno"); setTimeout(()=>openProperty(sid,pid),260); }
 function pIn(label,id,val,extra){return '<div><div class="miniL">'+label+'</div><input class="din" id="'+id+'" value="'+esc(val||"")+'" '+(extra||"")+'></div>';}
+// One extra 建地 block (土地持份坪數-建地／土地使用分區／容積率). Extra parcels use
+// data-p attributes rather than ids so add/remove works without id collisions.
+function parcelBlockHTML(pc){ pc=pc||{};
+  return '<div class="parcelRow" style="border:1px dashed var(--line);border-radius:10px;padding:10px 10px 4px;margin-top:8px;position:relative">'+
+    '<button type="button" class="btn ghost sm" style="position:absolute;right:8px;top:8px" title="移除這筆建地" onclick="var r=this.closest(\'.parcelRow\');r.parentNode.removeChild(r);propAutoSave()">✕</button>'+
+    '<div class="miniL" style="font-weight:700;color:var(--brand)">建地</div>'+
+    '<div class="grid2" style="margin-top:4px">'+
+      '<div><div class="miniL">土地持份坪數-建地</div><input class="din" data-p="landBuild" data-unit="坪" placeholder="輸入數字（單位：坪）" value="'+esc(pc.landBuild||"")+'"></div>'+
+      '<div><div class="miniL">土地使用分區</div><input class="din" data-p="zoning" placeholder="例如：住三" value="'+esc(pc.zoning||"")+'"></div>'+
+    '</div>'+
+    '<div class="grid2" style="margin:8px 0 0">'+
+      '<div><div class="miniL">容積率</div><input class="din" data-p="far" data-unit="%" placeholder="輸入數字（單位：%）" value="'+esc(pc.far||"")+'"></div>'+
+      '<div></div>'+
+    '</div>'+
+  '</div>';
+}
+function addParcel(){ const box=document.getElementById("extraParcels"); if(!box) return; box.insertAdjacentHTML("beforeend",parcelBlockHTML({})); }
+function collectParcels(){ return [...document.querySelectorAll("#extraParcels .parcelRow")].map(r=>({
+    landBuild:(r.querySelector('[data-p=landBuild]')||{}).value||"",
+    zoning:(r.querySelector('[data-p=zoning]')||{}).value||"",
+    far:(r.querySelector('[data-p=far]')||{}).value||"" })).filter(x=>x.landBuild||x.zoning||x.far); }
 function unitAttr(u){return 'data-unit="'+u+'" placeholder="輸入數字（單位：'+u+'）"';}
 function normalizeUnitFields(root){
   (root||document).querySelectorAll('[data-unit]').forEach(el=>{
@@ -1954,7 +1975,10 @@ function openProperty(sid,pid){
       '<div class="grid2">'+pIn("主建物","oMain",ob.main,unitAttr("坪"))+pIn("附屬建物","oAttached",ob.attached,unitAttr("坪"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("公設","oCommon",ob.common,unitAttr("坪"))+pIn("權狀坪數","oDeed",ob.deed,unitAttr("坪"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("土地持份坪數-建地","oLandBuild",ob.landBuild,unitAttr("坪"))+pIn("土地使用分區","oZoning",ob.zoning)+'</div>'+
-      '<div class="grid2" style="margin-top:8px">'+pIn("容積率","oFar",ob.far,unitAttr("%"))+pIn("土地持份坪數-道路用地","oLandRoad",ob.landRoad,unitAttr("坪"))+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("容積率","oFar",ob.far,unitAttr("%"))+'<div></div></div>'+
+      '<div id="extraParcels">'+(ob.parcels||[]).map(parcelBlockHTML).join("")+'</div>'+
+      '<button type="button" class="btn" style="margin-top:8px" onclick="addParcel()">＋ 新增建地</button>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("土地持份坪數-道路用地","oLandRoad",ob.landRoad,unitAttr("坪"))+'<div></div></div>'+
     '</div>'+
     '<div class="track"><h4>預估分回</h4>'+
       '<div>'+pIn("預估分回室內坪數","rEstIndoor",p.estIndoor,unitAttr("坪"))+'</div>'+
@@ -1991,7 +2015,7 @@ function writePropertyFields(p){
   p.rent={gross:g("rRentGross"),mgmt:g("rRentMgmt")}; p.rentAgent=g("rRentAgent").trim(); p.mgmtAgent=g("rMgmtAgent").trim();
   p.photosBefore=g("rPhotoBefore"); p.photosAfter=g("rPhotoAfter"); p.floorPlan=g("rFloorPlan");
   p.siteFile=g("rSiteFilePath"); p.parcel=g("rParcel").trim(); p.siteArea=g("rSiteArea").trim(); p.developer=g("rDeveloper").trim(); p.builder=g("rBuilder").trim();
-  p.old={main:g("oMain"),attached:g("oAttached"),common:g("oCommon"),deed:g("oDeed"),landBuild:g("oLandBuild"),zoning:g("oZoning"),far:g("oFar"),landRoad:g("oLandRoad")};
+  p.old={main:g("oMain"),attached:g("oAttached"),common:g("oCommon"),deed:g("oDeed"),landBuild:g("oLandBuild"),zoning:g("oZoning"),far:g("oFar"),landRoad:g("oLandRoad"),parcels:collectParcels()};
   p.estIndoor=g("rEstIndoor"); p.estIndoorNote=g("rEstIndoorNote"); p.estDeed=g("rEstDeed"); p.estDeedNote=g("rEstDeedNote"); p.estValue=g("rEstValue"); p.estValueNote=g("rEstValueNote");
   p.driveLink=g("rDrive").trim();
 }
