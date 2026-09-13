@@ -355,6 +355,8 @@
       <button id="vStats" onclick="setView('stats')">統計總覽</button>
     </div>
     <div class="spacer"></div>
+    <button class="btn" id="btnUndo" title="復原上一步操作" onclick="undo()" disabled>↶ 復原</button>
+    <button class="btn" id="btnRedo" title="重做下一步操作" onclick="redo()" disabled>↷ 重做</button>
     <button class="btn" id="btnTodo" onclick="setView('todo')">待辦項目</button>
     <button class="btn" onclick="openCohortMgr()">班級管理</button>
     <button class="btn" onclick="openTagMgr()">標籤管理</button>
@@ -704,9 +706,56 @@ async function remoteRefresh(){
   const rawT=await sGet("tags"); if(rawT) tags=JSON.parse(rawT);
   const rawC=await sGet("cohorts"); if(rawC){ cohorts=JSON.parse(rawC); if(activeCohort!=="__all__"&&!cohorts.find(c=>c.id===activeCohort)&&cohorts[0]) activeCohort=cohorts[0].id; }
   students=await loadActiveStudents();
+  undoResetForCohort();
   buildFlagChips(); renderCohorts(); render();
 }
-async function saveStudents(){ if(activeCohort==="__all__") return; await sSet("students:"+activeCohort, JSON.stringify(students)); }
+async function _writeStudents(){ if(activeCohort==="__all__") return; await sSet("students:"+activeCohort, JSON.stringify(students)); }
+async function saveStudents(){ undoRecordSave(); await _writeStudents(); }
+
+/* ---------- 復原 / 重做（整筆動作，per 班級） ----------
+   每次 saveStudents 前都把「變更前的整份學員資料」存進 undo 堆疊。物件抽屜因為
+   會邊打邊自動存，特別用「開啟時建基準、整個編輯階段只算一步」的方式，避免每次
+   自動儲存都變成一步。切換班級或收到團隊遠端更新時清空堆疊，避免用舊資料覆蓋。 */
+let undoStack=[], redoStack=[], _undoBaseline=null;
+let _propSessActive=false, _propSessBaseline=null, _propSessPushed=false;
+function _cloneStudents(){ return JSON.stringify(students); }
+function undoResetForCohort(){ undoStack=[]; redoStack=[]; _undoBaseline=_cloneStudents(); _propSessActive=false; _propSessPushed=false; updateUndoUI(); }
+function _pushUndo(prev){ undoStack.push(prev); if(undoStack.length>60) undoStack.shift(); redoStack.length=0; _undoBaseline=_cloneStudents(); updateUndoUI(); }
+function undoStartPropSession(){ _propSessActive=true; _propSessBaseline=_cloneStudents(); _propSessPushed=false; }
+function undoEndPropSession(){ _propSessActive=false; }
+function undoRecordSave(){
+  if(activeCohort==="__all__") return;
+  if(_propSessActive){
+    if(!_propSessPushed){ if(_cloneStudents()!==_propSessBaseline){ _pushUndo(_propSessBaseline); _propSessPushed=true; } }
+    else { _undoBaseline=_cloneStudents(); }
+  } else {
+    const cur=_cloneStudents();
+    if(_undoBaseline===null){ _undoBaseline=cur; return; }
+    if(cur!==_undoBaseline) _pushUndo(_undoBaseline);
+  }
+}
+async function undo(){
+  if(activeCohort==="__all__"){ toast("「全部」檢視無法復原，請先選一個班級"); return; }
+  if(!undoStack.length){ toast("沒有可復原的動作"); return; }
+  const prev=undoStack.pop();
+  redoStack.push(_cloneStudents());
+  students=JSON.parse(prev); _undoBaseline=_cloneStudents(); _propSessActive=false;
+  await _writeStudents(); closeDrawer(); render(); updateUndoUI(); toast("已復原上一步");
+}
+async function redo(){
+  if(activeCohort==="__all__"){ toast("「全部」檢視無法重做，請先選一個班級"); return; }
+  if(!redoStack.length){ toast("沒有可重做的動作"); return; }
+  const next=redoStack.pop();
+  undoStack.push(_cloneStudents());
+  students=JSON.parse(next); _undoBaseline=_cloneStudents(); _propSessActive=false;
+  await _writeStudents(); closeDrawer(); render(); updateUndoUI(); toast("已重做下一步");
+}
+function updateUndoUI(){
+  const off=activeCohort==="__all__";
+  const u=document.getElementById("btnUndo"), r=document.getElementById("btnRedo");
+  if(u) u.disabled=off||!undoStack.length;
+  if(r) r.disabled=off||!redoStack.length;
+}
 async function saveCohorts(){ await sSet("cohorts",JSON.stringify(cohorts)); await sSet("activeCohort",activeCohort); }
 async function saveTags(){ await sSet("tags",JSON.stringify(tags)); }
 
@@ -757,6 +806,7 @@ async function startApp(){
     await sSet("students:c1",JSON.stringify([])); await saveCohorts();
   }
   students=await loadActiveStudents();
+  undoResetForCohort();
   buildRegionOptions(); buildStageOptions(); buildStatusFilterOptions(); renderCohorts(); buildFlagChips(); render();
   subscribeRealtime();
   setTimeout(()=>{ if(typeof fitTable==="function") fitTable(); },300);
@@ -819,6 +869,7 @@ async function updateCohortCounts(){
 }
 async function switchCohort(cid){
   activeCohort=cid; students=await loadActiveStudents(); await sSet("activeCohort",cid);
+  undoResetForCohort();
   selectedId=null; selected=new Set(); closeDrawer(); renderCohorts(); render();
 }
 function openCohort(){document.getElementById("newCohortName").value="";document.getElementById("cohortModal").classList.add("show");setTimeout(()=>document.getElementById("newCohortName").focus(),50);}
@@ -828,6 +879,7 @@ async function submitCohort(){
   if(!name){toast("請輸入班級名稱");return;}
   const id="c"+Date.now(); cohorts.push({id,name});
   await sSet("students:"+id,JSON.stringify([])); activeCohort=id; students=[];
+  undoResetForCohort();
   await saveCohorts(); closeCohort(); renderCohorts(); render(); toast("已建立「"+name+"」");
 }
 
@@ -1570,7 +1622,7 @@ function initAutoGrow(root){
 /* student drawer */
 function openDrawer(id){
   if(activeCohort==="__all__"){ const s0=students.find(x=>x.id===id); if(s0&&s0.__cohort){ openStudentFromAll(s0.__cohort,id); return; } }
-  selectedId=id; renoRef=null;
+  selectedId=id; renoRef=null; undoEndPropSession();
   const s=students.find(x=>x.id===id); if(!s)return;
   document.getElementById("dName").textContent=s.name;
   document.getElementById("dMeta").textContent=[s.job,(s.age!=null?s.age+"歲":s.ageRaw)].filter(Boolean).join(" · ");
@@ -1635,7 +1687,7 @@ function propRow(sid,p){
     '<button class="goreno" onclick="event.stopPropagation();gotoReno(\''+sid+'\',\''+p.id+'\')">改建專區 →</button></div></div>';
 }
 function field(k,v){const blank=!v||!(''+v).trim();return '<div class="field"><div class="k">'+k+'</div><div class="v'+(blank?" blank":"")+'">'+(blank?"未填寫":esc(v))+'</div></div>';}
-function closeDrawer(){document.getElementById("scrim").classList.remove("show");document.getElementById("drawer").classList.remove("show");selectedId=null;renoRef=null;if(refreshPending){refreshPending=false;remoteRefresh();}}
+function closeDrawer(){undoEndPropSession();document.getElementById("scrim").classList.remove("show");document.getElementById("drawer").classList.remove("show");selectedId=null;renoRef=null;if(refreshPending){refreshPending=false;remoteRefresh();}}
 async function saveDrawer(){
   const s=students.find(x=>x.id===selectedId); if(!s)return;
   collectDrawerFields(s);
@@ -1879,6 +1931,7 @@ function openProperty(sid,pid){
   const s=students.find(x=>String(x.id)===String(sid)); if(!s)return;
   const p=(s.properties||[]).find(x=>String(x.id)===String(pid)); if(!p)return;
   renoRef={sid:s.id,pid:p.id}; selectedId=null;
+  undoStartPropSession();   // 整個物件編輯階段（含自動儲存）算一步
   const tx=p.taxes||{},l1=p.loan01||{},l4=p.loan04||{},rt=p.rent||{},ob=p.old||{};
   const has04=Object.values(l4).some(v=>v&&String(v).trim());   // 有週轉金才顯示科目04
   document.getElementById("dName").textContent=p.address||"未填地址";
