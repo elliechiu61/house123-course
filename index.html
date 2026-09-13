@@ -1779,7 +1779,7 @@ async function submitProp(){
   s.properties=s.properties||[];
   normalizeUnitFields(document.getElementById("propModal"));
   const gv=id=>{const e=document.getElementById(id);return e?e.value.trim():"";};
-  const rec={id:"p"+Date.now(),address:addr,area:gv("pArea"),price:gv("pPrice"),boughtDate:gv("pDate"),stage:0,renovNote:"",
+  const rec={id:"p"+Date.now(),address:addr,area:gv("pArea"),price:gv("pPrice"),contractDate:gv("pDate"),stage:0,renovNote:"",
     old:{deed:gv("pDeed"),zoning:gv("pZoning"),landBuild:gv("pLandBuild"),landRoad:gv("pLandRoad")}};
   s.properties.push(rec);
   await saveStudents(); closePropModal();
