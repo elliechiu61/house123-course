@@ -1933,7 +1933,7 @@ function openProperty(sid,pid,keepHist){
   if(!keepHist) recStart('prop');
   const tx=p.taxes||{},l1=p.loan01||{},l4=p.loan04||{},rt=p.rent||{},ob=p.old||{};
   const has04=Object.values(l4).some(v=>v&&String(v).trim());   // 有週轉金才顯示科目04
-  document.getElementById("dName").textContent=p.address||"未填地址";
+  document.getElementById("dName").innerHTML='<input id="rAddr" value="'+esc(p.address||"")+'" placeholder="未填地址（可直接編輯）" oninput="drawerAutoSave()" style="width:100%;font:inherit;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.35);border-radius:8px;padding:3px 10px">';
   document.getElementById("dMeta").textContent="屋主："+s.name;
   document.getElementById("dBody").innerHTML=
     '<div class="track"><h4>狀態標籤</h4>'+
@@ -1944,8 +1944,8 @@ function openProperty(sid,pid,keepHist){
     '<div class="track"><h4>屋主</h4>'+ownerSelect("rOwner",s.id)+'<div style="color:var(--muted);font-size:12px;margin-top:6px">改成其他學員並按「儲存變更」，即可把此物件搬到該學員名下。</div></div>'+
     '<div class="track"><h4>待辦事項</h4>'+propTodoHtml(p)+'</div>'+
     '<div class="track"><h4>物件資料</h4>'+
-      '<div class="miniL">地址</div><input class="din" id="rAddr" value="'+esc(p.address||"")+'">'+
-      '<div class="grid2" style="margin-top:8px"><div><div class="miniL">簽約日期</div><input class="din" id="rContract" value="'+esc(p.contractDate||"")+'" placeholder="2026/03"></div>'+
+      '<div class="hint" style="margin-bottom:8px">地址請在最上方標題直接編輯</div>'+
+      '<div class="grid2"><div><div class="miniL">簽約日期</div><input class="din" id="rContract" value="'+esc(p.contractDate||"")+'" placeholder="2026/03"></div>'+
       '<div><div class="miniL">交屋日期</div><input class="din" id="rHandover" value="'+esc(p.handoverDate||"")+'" placeholder="2026/06"></div></div>'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">仲介</div><input class="din" id="rAgent" value="'+esc(p.agent||"")+'"></div>'+
       '<div><div class="miniL">成交總價</div><input class="din" id="rPrice" value="'+esc(p.price||"")+'" '+unitAttr("萬")+'></div></div>'+
