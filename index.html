@@ -1787,8 +1787,9 @@ async function uploadRenoFile(input){
     const {error}=await supa.storage.from(RENO_BUCKET).upload(path, f, {upsert:true});
     if(error){ if(msg) msg.textContent="上傳失敗："+error.message; return; }
     document.getElementById("rSiteFilePath").value=path;
-    if(msg) msg.textContent="✅ 已上傳「"+f.name+"」，記得按「儲存變更」";
+    if(msg) msg.textContent="✅ 已上傳「"+f.name+"」";
     renderRenoPreview();
+    propAutoSave();
   }catch(e){ if(msg) msg.textContent="上傳失敗："+e.message; }
 }
 async function renderRenoPreview(){
@@ -1815,8 +1816,9 @@ async function openRenoFile(){
 }
 function removeRenoFile(){
   const h=document.getElementById("rSiteFilePath"); if(h) h.value="";
-  const msg=document.getElementById("rSiteFileMsg"); if(msg) msg.textContent="已移除（記得按儲存變更）";
+  const msg=document.getElementById("rSiteFileMsg"); if(msg) msg.textContent="已移除";
   const box=document.getElementById("rSitePreview"); if(box) box.innerHTML="";
+  propAutoSave();
 }
 /* 共用「是／否」元件（兩個 checkbox 互斥） */
 function ynRow(label,id,val){
@@ -1967,14 +1969,15 @@ function openProperty(sid,pid){
       (p.driveLink?'<div style="margin-top:8px"><a href="'+esc(p.driveLink)+'" target="_blank" style="color:var(--brand);font-weight:700">開啟記帳表 →</a></div>':'')+
     '</div>'+
     '<div class="field"><div class="k">學員</div><div class="v" style="cursor:pointer;color:var(--brand);font-weight:700" onclick="openDrawer(\''+sid+'\')">'+esc(s.name)+' →</div></div>';
-  document.getElementById("dFoot").innerHTML='<button class="btn primary" onclick="saveProperty(true)">儲存變更並關閉</button><button class="btn" onclick="saveProperty(false)">儲存變更</button><button class="btn ghost" onclick="closeDrawer()">關閉</button><button class="btn del" onclick="deleteProperty()">刪除物件</button>';
+  document.getElementById("dFoot").innerHTML='<button class="btn primary" onclick="saveProperty(true)">儲存變更並關閉</button><button class="btn" onclick="saveProperty(false)">儲存變更</button><button class="btn ghost" onclick="closeDrawer()">關閉</button><span id="autoSaveStat" style="color:var(--muted);font-size:12px;margin-left:4px">✓ 自動儲存已開啟</span><button class="btn del" style="margin-left:auto" onclick="deleteProperty()">刪除物件</button>';
   document.getElementById("scrim").classList.add("show"); document.getElementById("drawer").classList.add("show");
   setTimeout(recalcProp,0);
   renderRenoPreview();
 }
-async function saveProperty(close){
-  const s=students.find(x=>x.id===renoRef.sid); const p=(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p)return;
-  normalizeUnitFields(document.getElementById("dBody"));
+// Reads every field in the property drawer into the property object. Shared by
+// the explicit save and the auto-save; deliberately does NOT touch the owner
+// dropdown (moving a property between students is only done on an explicit save).
+function writePropertyFields(p){
   const g=id=>{const e=document.getElementById(id);return e?e.value:"";};
   p.status=g("rStatus"); p.renoStatus=g("rRenoStatus"); p.role=g("rRole"); p.address=g("rAddr").trim(); p.contractDate=g("rContract").trim(); p.handoverDate=g("rHandover").trim();
   p.agent=g("rAgent").trim(); p.registrant=g("rRegistrant").trim(); p.price=g("rPrice").trim(); p.renovNote=g("rNote");
@@ -1991,6 +1994,29 @@ async function saveProperty(close){
   p.old={main:g("oMain"),attached:g("oAttached"),common:g("oCommon"),deed:g("oDeed"),landBuild:g("oLandBuild"),zoning:g("oZoning"),far:g("oFar"),landRoad:g("oLandRoad")};
   p.estIndoor=g("rEstIndoor"); p.estIndoorNote=g("rEstIndoorNote"); p.estDeed=g("rEstDeed"); p.estDeedNote=g("rEstDeedNote"); p.estValue=g("rEstValue"); p.estValueNote=g("rEstValueNote");
   p.driveLink=g("rDrive").trim();
+}
+function setAutoStat(txt){ const e=document.getElementById("autoSaveStat"); if(e) e.textContent=txt; }
+let _propSaveTimer=null;
+function propAutoSave(){
+  if(!renoRef) return;                       // only the property drawer auto-saves
+  clearTimeout(_propSaveTimer);
+  setAutoStat("編輯中…");
+  _propSaveTimer=setTimeout(async ()=>{
+    if(!renoRef) return;
+    const s=students.find(x=>x.id===renoRef.sid); const p=s&&(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p) return;
+    normalizeUnitFields(document.getElementById("dBody"));
+    writePropertyFields(p);
+    try{ await saveStudents(); render();
+         const t=new Date(); setAutoStat("✓ 已自動儲存 "+t.getHours()+":"+String(t.getMinutes()).padStart(2,"0")); }
+    catch(e){ setAutoStat("⚠ 自動儲存失敗，請按「儲存變更」"); }
+  }, 900);
+}
+async function saveProperty(close){
+  clearTimeout(_propSaveTimer);
+  const s=students.find(x=>x.id===renoRef.sid); const p=(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p)return;
+  normalizeUnitFields(document.getElementById("dBody"));
+  writePropertyFields(p);
+  const g=id=>{const e=document.getElementById(id);return e?e.value:"";};
   const newOwner=g("rOwner");
   if(newOwner && String(newOwner)!==String(renoRef.sid)){
     const ns=students.find(x=>String(x.id)===String(newOwner));
@@ -2003,7 +2029,7 @@ async function saveProperty(close){
   }
   await saveStudents(); render();
   if(close){ closeDrawer(); toast("已更新物件"); }
-  else toast("已儲存，可繼續編輯");
+  else { setAutoStat("✓ 已儲存"); toast("已儲存，可繼續編輯"); }
 }
 async function deleteProperty(){
   const s=students.find(x=>x.id===renoRef.sid); if(!s)return;
@@ -2198,6 +2224,10 @@ let toastT; function toast(m){const t=document.getElementById("toast");t.textCon
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeDrawer();closeAdd();closeCohort();closeTagMgr();closePropModal();closeImport();closeCohortMgr();closeBulkTodo();}});
 window.addEventListener("resize",()=>{ if(typeof fitTable==="function") fitTable(); });
 
+// Auto-save the property drawer as it is edited. Delegated on the stable #dBody
+// container so it survives every re-render; the guard in propAutoSave() keeps it
+// from firing for the student drawer.
+(function(){ const b=document.getElementById("dBody"); if(b){ b.addEventListener("input",propAutoSave); b.addEventListener("change",propAutoSave); } })();
 boot();
 </script>
 </body>
