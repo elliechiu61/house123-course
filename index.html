@@ -1772,8 +1772,8 @@ function recalcProp(){
 const RENO_BUCKET="reno-docs";
 async function uploadRenoFile(input){
   const f=input.files&&input.files[0]; if(!f) return;
-  const ok=/pdf$/i.test(f.type)||/jpe?g$/i.test(f.type)||/\.(pdf|jpe?g)$/i.test(f.name);
-  if(!ok){ toast("只能上傳 PDF 或 JPG"); input.value=""; return; }
+  const ok=/pdf$/i.test(f.type)||/jpe?g$/i.test(f.type)||/png$/i.test(f.type)||/\.(pdf|jpe?g|png)$/i.test(f.name);
+  if(!ok){ toast("只能上傳 PDF、JPG 或 PNG"); input.value=""; return; }
   const msg=document.getElementById("rSiteFileMsg"); if(msg) msg.textContent="上傳中…";
   try{
     const ext=(f.name.split(".").pop()||"dat").toLowerCase();
@@ -1928,10 +1928,10 @@ function openProperty(sid,pid){
       '<div class="psub">目前用連結方式；若要直接上傳檔案，之後可加 Supabase 儲存空間。</div>'+
     '</div>'+
     '<div class="track"><h4>改建資訊</h4>'+
-      '<div class="miniL" style="margin-top:8px">改建基地（上傳 PDF／JPG）</div>'+
+      '<div class="miniL" style="margin-top:8px">改建基地（上傳 PDF／JPG／PNG）</div>'+
       '<div id="rSiteFileWrap">'+
         '<div id="rSitePreview" style="margin-bottom:8px"></div>'+
-        '<input type="file" accept="application/pdf,image/jpeg,.pdf,.jpg,.jpeg" id="rSiteFileInput" onchange="uploadRenoFile(this)">'+
+        '<input type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" id="rSiteFileInput" onchange="uploadRenoFile(this)">'+
         '<div class="psub" id="rSiteFileMsg"></div>'+
         '<input type="hidden" id="rSiteFilePath" value="'+esc(p.siteFile||"")+'">'+
       '</div>'+
