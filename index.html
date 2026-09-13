@@ -1950,7 +1950,7 @@ function openProperty(sid,pid){
       '<div class="grid2">'+pIn("主建物","oMain",ob.main,unitAttr("坪"))+pIn("附屬建物","oAttached",ob.attached,unitAttr("坪"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("公設","oCommon",ob.common,unitAttr("坪"))+pIn("權狀坪數","oDeed",ob.deed,unitAttr("坪"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("土地持份坪數-建地","oLandBuild",ob.landBuild,unitAttr("坪"))+pIn("土地使用分區","oZoning",ob.zoning)+'</div>'+
-      '<div class="grid2" style="margin-top:8px">'+pIn("容積率","oFar",ob.far)+pIn("土地持份坪數-道路用地","oLandRoad",ob.landRoad,unitAttr("坪"))+'</div>'+
+      '<div class="grid2" style="margin-top:8px">'+pIn("容積率","oFar",ob.far,unitAttr("%"))+pIn("土地持份坪數-道路用地","oLandRoad",ob.landRoad,unitAttr("坪"))+'</div>'+
     '</div>'+
     '<div class="track"><h4>預估分回</h4>'+
       '<div>'+pIn("預估分回室內坪數","rEstIndoor",p.estIndoor,unitAttr("坪"))+'</div>'+
