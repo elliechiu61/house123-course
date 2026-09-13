@@ -822,6 +822,7 @@ async function startApp(){
   students=await loadActiveStudents();
   buildRegionOptions(); buildStageOptions(); buildStatusFilterOptions(); renderCohorts(); buildFlagChips(); render();
   subscribeRealtime();
+  handleRenoDeepLink();
   setTimeout(()=>{ if(typeof fitTable==="function") fitTable(); },300);
 }
 async function boot(){
@@ -1699,7 +1700,7 @@ function propRow(sid,p){
   const st=[oh&&oh.label,orn&&orn.label].filter(Boolean).map(esc).join("、")||"未設定";
   return '<div class="prow"><div class="ptop"><div><div class="paddr">'+esc(p.address||"未填地址")+'</div>'+
     '<div class="pmeta">'+st+(p.handoverDate?' · 交屋 '+esc(p.handoverDate):'')+(p.price?' · '+esc(p.price):'')+'</div></div>'+
-    '<button class="goreno" onclick="event.stopPropagation();gotoReno(\''+sid+'\',\''+p.id+'\')">改建專區 →</button></div></div>';
+    '<button class="goreno" onclick="event.stopPropagation();openRenoNewTab(\''+sid+'\',\''+p.id+'\')">改建專區 →</button></div></div>';
 }
 function field(k,v){const blank=!v||!(''+v).trim();return '<div class="field"><div class="k">'+k+'</div><div class="v'+(blank?" blank":"")+'">'+(blank?"未填寫":esc(v))+'</div></div>';}
 function closeDrawer(){recEnd();document.getElementById("scrim").classList.remove("show");document.getElementById("drawer").classList.remove("show");selectedId=null;renoRef=null;if(refreshPending){refreshPending=false;remoteRefresh();}}
@@ -1842,6 +1843,20 @@ async function submitProp(){
 
 /* renovation property drawer */
 function gotoReno(sid,pid){ closeDrawer(); setView("reno"); setTimeout(()=>openProperty(sid,pid),260); }
+// 另開分頁到該物件的改建專區（用網址 hash 帶班級/學員/物件，新分頁載入後自動開啟）
+function openRenoNewTab(sid,pid){
+  const base=location.href.split('#')[0];
+  window.open(base+'#reno='+encodeURIComponent(activeCohort)+'/'+encodeURIComponent(sid)+'/'+encodeURIComponent(pid),'_blank');
+}
+async function handleRenoDeepLink(){
+  const m=/#reno=([^/]+)\/([^/]+)\/([^/]+)/.exec(location.hash||"");
+  if(!m) return;
+  const cid=decodeURIComponent(m[1]), sid=decodeURIComponent(m[2]), pid=decodeURIComponent(m[3]);
+  history.replaceState(null,"",location.href.split('#')[0]);   // 清掉 hash，重新整理不會再觸發
+  if(activeCohort!==cid && cohorts.find(c=>c.id===cid)){ await switchCohort(cid); }
+  setView("reno");
+  setTimeout(()=>openProperty(sid,pid),120);
+}
 function pIn(label,id,val,extra){return '<div><div class="miniL">'+label+'</div><input class="din" id="'+id+'" value="'+esc(val||"")+'" '+(extra||"")+'></div>';}
 // One extra 建地 block (土地持份坪數-建地／土地使用分區／容積率). Extra parcels use
 // data-p attributes rather than ids so add/remove works without id collisions.
