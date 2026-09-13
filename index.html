@@ -427,7 +427,7 @@
       <div class="fgrp"><label style="font-size:11px;font-weight:700;color:var(--muted)">改建標籤</label>
         <select id="fStage" onchange="renderReno()"><option value="all">全部改建</option></select></div>
       <div class="fgrp"><label style="font-size:11px;font-weight:700;color:var(--muted)">陪跑標籤</label>
-        <select id="fRole" onchange="renderReno()"><option value="all">全部標籤</option><option value="純紀錄">純紀錄</option><option value="陪跑">陪跑</option><option value="主導">主導</option><option value="">未設定</option></select></div>
+        <select id="fRole" onchange="renderReno()"><option value="__none__">未設定</option><option value="all" selected>全部標籤</option><option value="純紀錄">純紀錄</option><option value="陪跑">陪跑</option><option value="主導">主導</option></select></div>
       <div class="fgrp"><label style="font-size:11px;font-weight:700;color:var(--muted)">搜尋地址</label>
         <input id="renoSearch" type="search" placeholder="輸入部分地址…" oninput="renderReno()" style="min-width:180px"></div>
       <div class="spacer"></div>
@@ -985,10 +985,10 @@ async function delTag(id){
 function buildRegionOptions(){document.getElementById("fRegion").innerHTML='<option value="all">全部</option>'+REGIONS.map(r=>'<option value="'+r+'">'+r+'</option>').join("");}
 function buildStageOptions(){
   const rOpts=renoStatuses().map(o=>'<option value="'+o.key+'">'+o.label+'</option>').join("");
-  const fs=document.getElementById("fStage"); if(fs) fs.innerHTML='<option value="all">全部改建</option>'+rOpts;
+  const fs=document.getElementById("fStage"); if(fs){ const keep=fs.value; fs.innerHTML='<option value="__none__">未設定</option><option value="all">全部改建</option>'+rOpts; fs.value=keep||"all"; }
   const grp=(n,a)=>a.length?'<optgroup label="'+n+'">'+a.map(o=>'<option value="'+o.key+'">'+o.label+'</option>').join('')+'</optgroup>':'';
   const hOpts=HOLD_GROUPS.map(G=>grp(G.name,holdStatusesByGroup(G.key))).join('');
-  const fh=document.getElementById("fHold"); if(fh) fh.innerHTML='<option value="all">全部持有</option>'+hOpts;
+  const fh=document.getElementById("fHold"); if(fh){ const keep=fh.value; fh.innerHTML='<option value="__none__">未設定</option><option value="all">全部持有</option>'+hOpts; fh.value=keep||"all"; }
 }
 function buildStatusFilterOptions(){
   const el=document.getElementById("fStatus"); if(!el) return;
@@ -1538,9 +1538,10 @@ function renderReno(){
   const roleEl=document.getElementById("fRole"); const roleF=roleEl?roleEl.value:"all";
   const qEl=document.getElementById("renoSearch"); const q=(qEl?qEl.value:"").trim().toLowerCase();
   let items=allProperties();
-  if(stageF!=="all") items=items.filter(x=>(x.p.renoStatus||"")===stageF);
-  if(holdF!=="all") items=items.filter(x=>(x.p.status||"")===holdF);
-  if(roleF!=="all") items=items.filter(x=>(x.p.role||"")===roleF);
+  const eqOrNone=(val,f)=> f==="__none__" ? !(val||"") : (val||"")===f;
+  if(stageF!=="all") items=items.filter(x=>eqOrNone(x.p.renoStatus,stageF));
+  if(holdF!=="all") items=items.filter(x=>eqOrNone(x.p.status,holdF));
+  if(roleF!=="all") items=items.filter(x=>eqOrNone(x.p.role,roleF));
   if(q) items=items.filter(x=>(x.p.address||"").toLowerCase().includes(q));
   const grid=document.getElementById("propgrid");
   document.getElementById("renoLine").innerHTML="共 <b>"+items.length+"</b> 件物件";
