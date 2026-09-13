@@ -1757,6 +1757,11 @@ function parcelBlockHTML(pc){ pc=pc||{};
 }
 function addParcel(){ const box=document.getElementById("extraParcels"); if(!box) return; box.insertAdjacentHTML("beforeend",parcelBlockHTML({})); }
 function show04(){ const box=document.getElementById("loan04Box"), btn=document.getElementById("add04Btn"); if(box) box.style.display=""; if(btn) btn.style.display="none"; const f=document.getElementById("l4Bank"); if(f) f.focus(); recalcProp(); }
+function cancel04(){ if(!confirm("取消科目04（週轉金）？已填的週轉金資料會清空。")) return;
+  ["l4Bank","l4Amt","l4Years","l4Lock","l4Rate","l4GraceS","l4GraceE","l4Int","l4PI"].forEach(id=>{const e=document.getElementById(id); if(e) e.value="";});
+  const box=document.getElementById("loan04Box"), btn=document.getElementById("add04Btn");
+  if(box) box.style.display="none"; if(btn) btn.style.display="";
+  recalcProp(); propAutoSave(); }
 function collectParcels(){ return [...document.querySelectorAll("#extraParcels .parcelRow")].map(r=>({
     landBuild:(r.querySelector('[data-p=landBuild]')||{}).value||"",
     zoning:(r.querySelector('[data-p=zoning]')||{}).value||"",
@@ -1937,7 +1942,8 @@ function openProperty(sid,pid){
       '<div class="grid2" style="margin-top:8px">'+pIn("利息／月","l1Int",l1.interestPM,unitAttr("萬")+' oninput="recalcProp()"')+pIn("本息／月","l1PI",l1.piPM,unitAttr("萬")+' oninput="recalcProp()"')+'</div>'+
       '</div>'+
       '<div id="add04Btn" style="'+(has04?'display:none':'')+'"><button type="button" class="btn" style="margin-top:10px" onclick="show04()">＋ 新增科目04（週轉金）</button></div>'+
-      '<div class="loanbox" id="loan04Box" style="border-color:#B0771C'+(has04?'':';display:none')+'">'+
+      '<div class="loanbox" id="loan04Box" style="position:relative;border-color:#B0771C'+(has04?'':';display:none')+'">'+
+      '<button type="button" class="btn ghost sm" style="position:absolute;right:10px;top:10px" title="取消科目04（週轉金）" onclick="cancel04()">✕</button>'+
       '<div class="loanhd" style="background:#B0771C">科目04（週轉金）</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("銀行","l4Bank",l4.bank)+pIn("金額","l4Amt",l4.amount,unitAttr("萬"))+'</div>'+
       '<div class="grid2" style="margin-top:8px">'+pIn("貸款年限","l4Years",l4.years,unitAttr("年"))+pIn("利率","l4Rate",l4.rate,unitAttr("%"))+'</div>'+
