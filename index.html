@@ -220,8 +220,9 @@
   .tmrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-soft)}
   .tmrow:last-child{border-bottom:none}
   .tmrow .sw{width:20px;height:20px;border-radius:6px;flex-shrink:0}
-  .tmrow input.tname{flex:1;border:1px solid transparent;border-radius:7px;padding:6px 8px;font-weight:600}
-  .tmrow input.tname:focus{outline:none;border-color:var(--line);background:#fff}
+  .tmrow input.tname{flex:1;border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-weight:600;background:#fff}
+  .tmrow input.tname:hover{border-color:var(--brand)}
+  .tmrow input.tname:focus{outline:none;border-color:var(--brand);background:#fff}
   .tmrow .used{font-size:12px;color:var(--muted);white-space:nowrap}
   .tmrow .xdel{border:none;background:transparent;color:var(--danger);font-weight:700;font-size:16px;padding:4px 8px;border-radius:7px}
   .tmrow .xdel:hover{background:#fbecea}
