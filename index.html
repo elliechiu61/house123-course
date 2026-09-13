@@ -530,6 +530,20 @@
   <div class="mf"><button class="btn ghost" onclick="closePropModal()">取消</button><button class="btn primary" onclick="submitProp()">儲存</button></div>
 </div></div>
 
+<!-- 實價登錄查詢 modal -->
+<div class="modal" id="lvrModal"><div class="box">
+  <div class="mh"><span>實價登錄查詢</span><button class="dclose" onclick="closeLvr()">✕</button></div>
+  <div class="mb">
+    <div style="color:var(--muted);font-size:13px;line-height:1.7">已開啟內政部「不動產交易實價查詢服務網」，並把地址複製到剪貼簿，可直接貼上搜尋。<br>查到後把「成交總價」和「交易日期（＝簽約日期）」填在下面，按「填入並儲存」。</div>
+    <div id="lvrAddr" style="font-weight:700;margin:10px 0;word-break:break-all"></div>
+    <div class="grid2">
+      <div><div class="miniL">成交總價</div><input class="din" id="lvrPrice" data-unit="萬" placeholder="輸入數字（單位：萬）"></div>
+      <div><div class="miniL">簽約日期（實價登錄交易日期）</div><input class="din" id="lvrDate" placeholder="例如：2026/03"></div>
+    </div>
+  </div>
+  <div class="mf"><button class="btn primary" onclick="applyLvr()">填入並儲存</button><button class="btn" onclick="openLvrSite()">重新開啟網站</button><button class="btn ghost" onclick="closeLvr()">取消</button></div>
+</div></div>
+
 <!-- Bulk todo modal -->
 <div class="modal" id="bulkTodoModal"><div class="box">
   <div class="mh"><span>新增待辦</span><button class="dclose" style="background:var(--line-soft);color:var(--ink)" onclick="closeBulkTodo()">✕</button></div>
@@ -1771,6 +1785,43 @@ document.addEventListener("click",e=>{
   if(combo && !combo.contains(e.target)) document.getElementById("pOwnerList").classList.remove("show");
 });
 function closePropModal(){document.getElementById("propModal").classList.remove("show");}
+/* ---- 實價登錄查詢：開官網＋複製地址，查到後手動填回 ---- */
+let _lvrRef=null;
+const LVR_URL="https://lvr.land.moi.gov.tw/";
+function openLvrLookup(){
+  if(!renoRef){ toast("請先開啟物件"); return; }
+  const s=students.find(x=>x.id===renoRef.sid); const p=s&&(s.properties||[]).find(x=>x.id===renoRef.pid);
+  if(!p){ toast("找不到物件"); return; }
+  _lvrRef={sid:renoRef.sid,pid:renoRef.pid};
+  const addrEl=document.getElementById("rAddr");
+  const addr=((addrEl?addrEl.value:p.address)||"").trim();
+  document.getElementById("lvrAddr").textContent=addr?("物件地址："+addr):"（此物件尚未填地址）";
+  document.getElementById("lvrPrice").value=""; document.getElementById("lvrDate").value="";
+  openLvrSite();
+  document.getElementById("lvrModal").classList.add("show");
+}
+function openLvrSite(){
+  const t=document.getElementById("lvrAddr").textContent||"";
+  const addr=t.replace(/^物件地址：/,"").trim();
+  if(addr && addr[0]!=="（"){ try{ const r=navigator.clipboard&&navigator.clipboard.writeText(addr); if(r&&r.catch) r.catch(()=>{}); }catch(e){} }
+  window.open(LVR_URL,"_blank");
+}
+function closeLvr(){ document.getElementById("lvrModal").classList.remove("show"); _lvrRef=null; }
+function applyLvr(){
+  normalizeUnitFields(document.getElementById("lvrModal"));
+  const price=document.getElementById("lvrPrice").value.trim();
+  const date=document.getElementById("lvrDate").value.trim();
+  if(!price && !date){ toast("請至少填「成交總價」或「簽約日期」"); return; }
+  if(renoRef && _lvrRef && renoRef.sid===_lvrRef.sid && renoRef.pid===_lvrRef.pid){
+    if(price){ const e=document.getElementById("rPrice"); if(e) e.value=price; }
+    if(date){ const e=document.getElementById("rContract"); if(e) e.value=date; }
+    recalcProp(); propAutoSave();
+  } else if(_lvrRef){
+    const s=students.find(x=>x.id===_lvrRef.sid); const p=s&&(s.properties||[]).find(x=>x.id===_lvrRef.pid);
+    if(p){ if(price)p.price=price; if(date)p.contractDate=date; saveStudents().then(render); }
+  }
+  closeLvr(); toast("已填入");
+}
 async function submitProp(){
   const addr=document.getElementById("pAddr").value.trim();
   if(!addr){toast("請輸入物件地址");return;}
@@ -1949,7 +2000,8 @@ function openProperty(sid,pid,keepHist){
       '<div class="grid2"><div><div class="miniL">簽約日期</div><input class="din" id="rContract" value="'+esc(p.contractDate||"")+'" placeholder="2026/03"></div>'+
       '<div><div class="miniL">交屋日期</div><input class="din" id="rHandover" value="'+esc(p.handoverDate||"")+'" placeholder="2026/06"></div></div>'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">仲介</div><input class="din" id="rAgent" value="'+esc(p.agent||"")+'"></div>'+
-      '<div><div class="miniL">成交總價</div><input class="din" id="rPrice" value="'+esc(p.price||"")+'" '+unitAttr("萬")+'></div></div>'+
+      '<div><div class="miniL">成交總價</div><input class="din" id="rPrice" value="'+esc(p.price||"")+'" '+unitAttr("萬")+'>'+
+        '<button type="button" class="btn sm" style="margin-top:6px" onclick="openLvrLookup()" title="開啟內政部實價登錄查詢，把查到的成交總價與交易日期填回">🔍 查實價登錄</button></div></div>'+
       '<div class="miniL" style="margin-top:8px">登記人</div><input class="din" id="rRegistrant" value="'+esc(p.registrant||"")+'">'+
     '</div>'+
         '<div class="track"><h4>財務・成本</h4>'+
@@ -2325,7 +2377,7 @@ function restorePicked(inp){
 
 function esc(s){return(''+(s==null?"":s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 let toastT; function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),2200);}
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeDrawer();closeAdd();closeCohort();closeTagMgr();closePropModal();closeImport();closeCohortMgr();closeBulkTodo();}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeDrawer();closeAdd();closeCohort();closeTagMgr();closePropModal();closeImport();closeCohortMgr();closeBulkTodo();closeLvr();}});
 window.addEventListener("resize",()=>{ if(typeof fitTable==="function") fitTable(); });
 
 // Auto-save the property drawer as it is edited. Delegated on the stable #dBody
