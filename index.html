@@ -428,6 +428,8 @@
         <select id="fStage" onchange="renderReno()"><option value="all">全部改建</option></select></div>
       <div class="fgrp"><label style="font-size:11px;font-weight:700;color:var(--muted)">陪跑標籤</label>
         <select id="fRole" onchange="renderReno()"><option value="all">全部標籤</option><option value="純紀錄">純紀錄</option><option value="陪跑">陪跑</option><option value="主導">主導</option><option value="">未設定</option></select></div>
+      <div class="fgrp"><label style="font-size:11px;font-weight:700;color:var(--muted)">搜尋地址</label>
+        <input id="renoSearch" type="search" placeholder="輸入部分地址…" oninput="renderReno()" style="min-width:180px"></div>
       <div class="spacer"></div>
       <button class="btn primary" onclick="openPropModalReno()">＋ 新增物件</button>
     </div>
@@ -1485,10 +1487,12 @@ function renderReno(){
   const stageF=document.getElementById("fStage").value;
   const holdEl=document.getElementById("fHold"); const holdF=holdEl?holdEl.value:"all";
   const roleEl=document.getElementById("fRole"); const roleF=roleEl?roleEl.value:"all";
+  const qEl=document.getElementById("renoSearch"); const q=(qEl?qEl.value:"").trim().toLowerCase();
   let items=allProperties();
   if(stageF!=="all") items=items.filter(x=>(x.p.renoStatus||"")===stageF);
   if(holdF!=="all") items=items.filter(x=>(x.p.status||"")===holdF);
   if(roleF!=="all") items=items.filter(x=>(x.p.role||"")===roleF);
+  if(q) items=items.filter(x=>(x.p.address||"").toLowerCase().includes(q));
   const grid=document.getElementById("propgrid");
   document.getElementById("renoLine").innerHTML="共 <b>"+items.length+"</b> 件物件";
   document.getElementById("renoEmpty").style.display=items.length?"none":"block";
