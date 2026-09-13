@@ -355,8 +355,6 @@
       <button id="vStats" onclick="setView('stats')">統計總覽</button>
     </div>
     <div class="spacer"></div>
-    <button class="btn" id="btnUndo" title="復原上一步操作" onclick="undo()" disabled>↶ 復原</button>
-    <button class="btn" id="btnRedo" title="重做下一步操作" onclick="redo()" disabled>↷ 重做</button>
     <button class="btn" id="btnTodo" onclick="setView('todo')">待辦項目</button>
     <button class="btn" onclick="openCohortMgr()">班級管理</button>
     <button class="btn" onclick="openTagMgr()">標籤管理</button>
@@ -706,55 +704,56 @@ async function remoteRefresh(){
   const rawT=await sGet("tags"); if(rawT) tags=JSON.parse(rawT);
   const rawC=await sGet("cohorts"); if(rawC){ cohorts=JSON.parse(rawC); if(activeCohort!=="__all__"&&!cohorts.find(c=>c.id===activeCohort)&&cohorts[0]) activeCohort=cohorts[0].id; }
   students=await loadActiveStudents();
-  undoResetForCohort();
   buildFlagChips(); renderCohorts(); render();
 }
-async function _writeStudents(){ if(activeCohort==="__all__") return; await sSet("students:"+activeCohort, JSON.stringify(students)); }
-async function saveStudents(){ undoRecordSave(); await _writeStudents(); }
+async function saveStudents(){ if(activeCohort==="__all__") return; await sSet("students:"+activeCohort, JSON.stringify(students)); }
 
-/* ---------- 復原 / 重做（整筆動作，per 班級） ----------
-   每次 saveStudents 前都把「變更前的整份學員資料」存進 undo 堆疊。物件抽屜因為
-   會邊打邊自動存，特別用「開啟時建基準、整個編輯階段只算一步」的方式，避免每次
-   自動儲存都變成一步。切換班級或收到團隊遠端更新時清空堆疊，避免用舊資料覆蓋。 */
-let undoStack=[], redoStack=[], _undoBaseline=null;
-let _propSessActive=false, _propSessBaseline=null, _propSessPushed=false;
-function _cloneStudents(){ return JSON.stringify(students); }
-function undoResetForCohort(){ undoStack=[]; redoStack=[]; _undoBaseline=_cloneStudents(); _propSessActive=false; _propSessPushed=false; updateUndoUI(); }
-function _pushUndo(prev){ undoStack.push(prev); if(undoStack.length>60) undoStack.shift(); redoStack.length=0; _undoBaseline=_cloneStudents(); updateUndoUI(); }
-function undoStartPropSession(){ _propSessActive=true; _propSessBaseline=_cloneStudents(); _propSessPushed=false; }
-function undoEndPropSession(){ _propSessActive=false; }
-function undoRecordSave(){
-  if(activeCohort==="__all__") return;
-  if(_propSessActive){
-    if(!_propSessPushed){ if(_cloneStudents()!==_propSessBaseline){ _pushUndo(_propSessBaseline); _propSessPushed=true; } }
-    else { _undoBaseline=_cloneStudents(); }
-  } else {
-    const cur=_cloneStudents();
-    if(_undoBaseline===null){ _undoBaseline=cur; return; }
-    if(cur!==_undoBaseline) _pushUndo(_undoBaseline);
+/* ---------- 復原 / 重做（單一筆記錄層級） ----------
+   只作用在目前打開的那一筆（學員資料或物件資料）。逐步記錄該筆的變更，復原/重做
+   只會還原那一筆，不會動到其他學員或物件。抽屜一關就結束、重開重來。 */
+let recHist=[], recIdx=-1, recKind=null, _recRef=null;   // recKind: 'student' | 'prop' | null
+function _recId(kind){ return kind==='prop' ? (renoRef?renoRef.sid+"/"+renoRef.pid:null) : (selectedId!=null?("s"+selectedId):null); }
+function _recSnap(){
+  if(recKind==='prop' && renoRef){ const s=students.find(x=>x.id===renoRef.sid); const p=s&&(s.properties||[]).find(x=>x.id===renoRef.pid); return p?JSON.stringify(p):null; }
+  if(recKind==='student' && selectedId!=null){ const s=students.find(x=>x.id===selectedId); return s?JSON.stringify(s):null; }
+  return null;
+}
+// Start (or keep) the history for the record now shown. Re-opening the SAME
+// record (e.g. inline refresh after adding a consultation) keeps its history;
+// opening a different record starts fresh.
+function recStart(kind){
+  const id=_recId(kind);
+  if(recKind===kind && _recRef===id && recHist.length){ updateRecUndoUI(); return; }
+  recKind=kind; _recRef=id; const s=_recSnap(); recHist=(s!==null)?[s]:[]; recIdx=recHist.length?0:-1; updateRecUndoUI();
+}
+function recEnd(){ recKind=null; _recRef=null; recHist=[]; recIdx=-1; }
+function recordHistory(){
+  if(recKind===null) return;
+  const snap=_recSnap(); if(snap===null) return;
+  if(recHist[recIdx]===snap) return;               // 沒變化就不記
+  recHist=recHist.slice(0,recIdx+1);               // 分岔後捨棄原本的「重做」
+  recHist.push(snap); recIdx++;
+  if(recHist.length>100){ recHist.shift(); recIdx--; }
+  updateRecUndoUI();
+}
+async function applyRecSnap(json){
+  const obj=JSON.parse(json);
+  if(recKind==='prop'){
+    const s=students.find(x=>x.id===renoRef.sid); if(!s) return;
+    const arr=s.properties||[]; const i=arr.findIndex(x=>x.id===renoRef.pid); if(i<0) return;
+    arr[i]=obj; await saveStudents(); render(); openProperty(renoRef.sid, renoRef.pid, true);
+  } else if(recKind==='student'){
+    const i=students.findIndex(x=>x.id===selectedId); if(i<0) return;
+    students[i]=obj; await saveStudents(); render(); openDrawer(selectedId, true);
   }
+  updateRecUndoUI();
 }
-async function undo(){
-  if(activeCohort==="__all__"){ toast("「全部」檢視無法復原，請先選一個班級"); return; }
-  if(!undoStack.length){ toast("沒有可復原的動作"); return; }
-  const prev=undoStack.pop();
-  redoStack.push(_cloneStudents());
-  students=JSON.parse(prev); _undoBaseline=_cloneStudents(); _propSessActive=false;
-  await _writeStudents(); closeDrawer(); render(); updateUndoUI(); toast("已復原上一步");
-}
-async function redo(){
-  if(activeCohort==="__all__"){ toast("「全部」檢視無法重做，請先選一個班級"); return; }
-  if(!redoStack.length){ toast("沒有可重做的動作"); return; }
-  const next=redoStack.pop();
-  undoStack.push(_cloneStudents());
-  students=JSON.parse(next); _undoBaseline=_cloneStudents(); _propSessActive=false;
-  await _writeStudents(); closeDrawer(); render(); updateUndoUI(); toast("已重做下一步");
-}
-function updateUndoUI(){
-  const off=activeCohort==="__all__";
-  const u=document.getElementById("btnUndo"), r=document.getElementById("btnRedo");
-  if(u) u.disabled=off||!undoStack.length;
-  if(r) r.disabled=off||!redoStack.length;
+async function recUndo(){ if(recKind===null||recIdx<=0){ toast("沒有可復原的變更"); return; } recIdx--; await applyRecSnap(recHist[recIdx]); toast("已復原上一步"); }
+async function recRedo(){ if(recKind===null||recIdx>=recHist.length-1){ toast("沒有可重做的變更"); return; } recIdx++; await applyRecSnap(recHist[recIdx]); toast("已重做下一步"); }
+function updateRecUndoUI(){
+  const u=document.getElementById("recUndo"), r=document.getElementById("recRedo");
+  if(u) u.disabled=!(recKind!==null&&recIdx>0);
+  if(r) r.disabled=!(recKind!==null&&recIdx<recHist.length-1);
 }
 async function saveCohorts(){ await sSet("cohorts",JSON.stringify(cohorts)); await sSet("activeCohort",activeCohort); }
 async function saveTags(){ await sSet("tags",JSON.stringify(tags)); }
@@ -806,7 +805,6 @@ async function startApp(){
     await sSet("students:c1",JSON.stringify([])); await saveCohorts();
   }
   students=await loadActiveStudents();
-  undoResetForCohort();
   buildRegionOptions(); buildStageOptions(); buildStatusFilterOptions(); renderCohorts(); buildFlagChips(); render();
   subscribeRealtime();
   setTimeout(()=>{ if(typeof fitTable==="function") fitTable(); },300);
@@ -869,7 +867,6 @@ async function updateCohortCounts(){
 }
 async function switchCohort(cid){
   activeCohort=cid; students=await loadActiveStudents(); await sSet("activeCohort",cid);
-  undoResetForCohort();
   selectedId=null; selected=new Set(); closeDrawer(); renderCohorts(); render();
 }
 function openCohort(){document.getElementById("newCohortName").value="";document.getElementById("cohortModal").classList.add("show");setTimeout(()=>document.getElementById("newCohortName").focus(),50);}
@@ -879,7 +876,6 @@ async function submitCohort(){
   if(!name){toast("請輸入班級名稱");return;}
   const id="c"+Date.now(); cohorts.push({id,name});
   await sSet("students:"+id,JSON.stringify([])); activeCohort=id; students=[];
-  undoResetForCohort();
   await saveCohorts(); closeCohort(); renderCohorts(); render(); toast("已建立「"+name+"」");
 }
 
@@ -1620,10 +1616,11 @@ function initAutoGrow(root){
 }
 
 /* student drawer */
-function openDrawer(id){
+function openDrawer(id,keepHist){
   if(activeCohort==="__all__"){ const s0=students.find(x=>x.id===id); if(s0&&s0.__cohort){ openStudentFromAll(s0.__cohort,id); return; } }
-  selectedId=id; renoRef=null; undoEndPropSession();
+  selectedId=id; renoRef=null;
   const s=students.find(x=>x.id===id); if(!s)return;
+  if(!keepHist) recStart('student');
   document.getElementById("dName").textContent=s.name;
   document.getElementById("dMeta").textContent=[s.job,(s.age!=null?s.age+"歲":s.ageRaw)].filter(Boolean).join(" · ");
   const tagBtns=tags.map(t=>{const on=(s.tagIds||[]).includes(t.id);
@@ -1675,9 +1672,11 @@ function openDrawer(id){
     '</div>';
   // mark active tag buttons
   document.querySelectorAll("#drawerTags .flagbtn").forEach(b=>{ if(b.dataset.on) b.classList.add("active"); });
-  document.getElementById("dFoot").innerHTML='<button class="btn primary" onclick="saveDrawer()">儲存變更</button><button class="btn ghost" onclick="closeDrawer()">關閉</button><button class="btn del" onclick="deleteStudent()">刪除學員</button>';
+  document.getElementById("dFoot").innerHTML='<button class="btn primary" onclick="saveDrawer()">儲存變更</button><button class="btn ghost" onclick="closeDrawer()">關閉</button><button class="btn" id="recUndo" title="復原這位學員的上一步變更" onclick="recUndo()" disabled>↶ 復原</button><button class="btn" id="recRedo" title="重做這位學員的下一步變更" onclick="recRedo()" disabled>↷ 重做</button><button class="btn del" style="margin-left:auto" onclick="deleteStudent()">刪除學員</button>';
+  updateRecUndoUI();
   document.getElementById("scrim").classList.add("show"); document.getElementById("drawer").classList.add("show");
   initAutoGrow(document.getElementById("dBody"));
+  recordHistory();   // capture any change made by an inline action that re-opened this drawer
 }
 function propRow(sid,p){
   const oh=psById(p.status), orn=psById(p.renoStatus);
@@ -1687,7 +1686,7 @@ function propRow(sid,p){
     '<button class="goreno" onclick="event.stopPropagation();gotoReno(\''+sid+'\',\''+p.id+'\')">改建專區 →</button></div></div>';
 }
 function field(k,v){const blank=!v||!(''+v).trim();return '<div class="field"><div class="k">'+k+'</div><div class="v'+(blank?" blank":"")+'">'+(blank?"未填寫":esc(v))+'</div></div>';}
-function closeDrawer(){undoEndPropSession();document.getElementById("scrim").classList.remove("show");document.getElementById("drawer").classList.remove("show");selectedId=null;renoRef=null;if(refreshPending){refreshPending=false;remoteRefresh();}}
+function closeDrawer(){recEnd();document.getElementById("scrim").classList.remove("show");document.getElementById("drawer").classList.remove("show");selectedId=null;renoRef=null;if(refreshPending){refreshPending=false;remoteRefresh();}}
 async function saveDrawer(){
   const s=students.find(x=>x.id===selectedId); if(!s)return;
   collectDrawerFields(s);
@@ -1927,11 +1926,11 @@ function ownerSelect(id,curId){
   const list=students.slice().sort((a,b)=>(''+a.name).localeCompare(''+b.name,"zh-Hant"));
   return '<select class="din" id="'+id+'">'+list.map(s=>'<option value="'+s.id+'"'+(String(s.id)===String(curId)?' selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>';
 }
-function openProperty(sid,pid){
+function openProperty(sid,pid,keepHist){
   const s=students.find(x=>String(x.id)===String(sid)); if(!s)return;
   const p=(s.properties||[]).find(x=>String(x.id)===String(pid)); if(!p)return;
   renoRef={sid:s.id,pid:p.id}; selectedId=null;
-  undoStartPropSession();   // 整個物件編輯階段（含自動儲存）算一步
+  if(!keepHist) recStart('prop');
   const tx=p.taxes||{},l1=p.loan01||{},l4=p.loan04||{},rt=p.rent||{},ob=p.old||{};
   const has04=Object.values(l4).some(v=>v&&String(v).trim());   // 有週轉金才顯示科目04
   document.getElementById("dName").textContent=p.address||"未填地址";
@@ -2056,10 +2055,12 @@ function openProperty(sid,pid){
       (p.driveLink?'<div style="margin-top:8px"><a href="'+esc(p.driveLink)+'" target="_blank" style="color:var(--brand);font-weight:700">開啟記帳表 →</a></div>':'')+
     '</div>'+
     '<div class="field"><div class="k">學員</div><div class="v" style="cursor:pointer;color:var(--brand);font-weight:700" onclick="openDrawer(\''+sid+'\')">'+esc(s.name)+' →</div></div>';
-  document.getElementById("dFoot").innerHTML='<button class="btn primary" onclick="saveProperty(true)">儲存變更並關閉</button><button class="btn" onclick="saveProperty(false)">儲存變更</button><button class="btn ghost" onclick="closeDrawer()">關閉</button><span id="autoSaveStat" style="color:var(--muted);font-size:12px;margin-left:4px">✓ 自動儲存已開啟</span><button class="btn del" style="margin-left:auto" onclick="deleteProperty()">刪除物件</button>';
+  document.getElementById("dFoot").innerHTML='<button class="btn primary" onclick="saveProperty(true)">儲存變更並關閉</button><button class="btn" onclick="saveProperty(false)">儲存變更</button><button class="btn ghost" onclick="closeDrawer()">關閉</button><button class="btn" id="recUndo" title="復原這筆物件的上一步變更" onclick="recUndo()" disabled>↶ 復原</button><button class="btn" id="recRedo" title="重做這筆物件的下一步變更" onclick="recRedo()" disabled>↷ 重做</button><span id="autoSaveStat" style="color:var(--muted);font-size:12px;margin-left:4px">✓ 自動儲存已開啟</span><button class="btn del" style="margin-left:auto" onclick="deleteProperty()">刪除物件</button>';
+  updateRecUndoUI();
   document.getElementById("scrim").classList.add("show"); document.getElementById("drawer").classList.add("show");
   setTimeout(recalcProp,0);
   renderRenoPreview();
+  recordHistory();   // capture any change made by an inline action that re-opened this drawer
 }
 // Reads every field in the property drawer into the property object. Shared by
 // the explicit save and the auto-save; deliberately does NOT touch the owner
@@ -2083,23 +2084,38 @@ function writePropertyFields(p){
   p.driveLink=g("rDrive").trim();
 }
 function setAutoStat(txt){ const e=document.getElementById("autoSaveStat"); if(e) e.textContent=txt; }
-let _propSaveTimer=null;
+let _drawerSaveTimer=null;
+// One debounced auto-save for whichever drawer is open. Records a per-record
+// undo point after each save so 復原/重做 steps through this record's changes.
+function drawerAutoSave(){
+  if(renoRef) propAutoSave(); else if(selectedId!=null) studentAutoSave();
+}
 function propAutoSave(){
-  if(!renoRef) return;                       // only the property drawer auto-saves
-  clearTimeout(_propSaveTimer);
+  if(!renoRef) return;
+  clearTimeout(_drawerSaveTimer);
   setAutoStat("編輯中…");
-  _propSaveTimer=setTimeout(async ()=>{
+  _drawerSaveTimer=setTimeout(async ()=>{
     if(!renoRef) return;
     const s=students.find(x=>x.id===renoRef.sid); const p=s&&(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p) return;
     normalizeUnitFields(document.getElementById("dBody"));
     writePropertyFields(p);
-    try{ await saveStudents(); render();
+    try{ await saveStudents(); recordHistory(); render();
          const t=new Date(); setAutoStat("✓ 已自動儲存 "+t.getHours()+":"+String(t.getMinutes()).padStart(2,"0")); }
     catch(e){ setAutoStat("⚠ 自動儲存失敗，請按「儲存變更」"); }
   }, 900);
 }
+function studentAutoSave(){
+  if(selectedId==null) return;
+  clearTimeout(_drawerSaveTimer);
+  _drawerSaveTimer=setTimeout(async ()=>{
+    if(selectedId==null) return;
+    const s=students.find(x=>x.id===selectedId); if(!s) return;
+    collectDrawerFields(s);                    // 班級搬移仍只在按「儲存變更」時處理
+    try{ await saveStudents(); recordHistory(); }catch(e){}
+  }, 900);
+}
 async function saveProperty(close){
-  clearTimeout(_propSaveTimer);
+  clearTimeout(_drawerSaveTimer);
   const s=students.find(x=>x.id===renoRef.sid); const p=(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p)return;
   normalizeUnitFields(document.getElementById("dBody"));
   writePropertyFields(p);
@@ -2114,7 +2130,7 @@ async function saveProperty(close){
       await saveStudents(); closeDrawer(); render(); toast("已將物件改到「"+ns.name+"」名下"); return;
     }
   }
-  await saveStudents(); render();
+  await saveStudents(); recordHistory(); render();
   if(close){ closeDrawer(); toast("已更新物件"); }
   else { setAutoStat("✓ 已儲存"); toast("已儲存，可繼續編輯"); }
 }
@@ -2314,7 +2330,7 @@ window.addEventListener("resize",()=>{ if(typeof fitTable==="function") fitTable
 // Auto-save the property drawer as it is edited. Delegated on the stable #dBody
 // container so it survives every re-render; the guard in propAutoSave() keeps it
 // from firing for the student drawer.
-(function(){ const b=document.getElementById("dBody"); if(b){ b.addEventListener("input",propAutoSave); b.addEventListener("change",propAutoSave); } })();
+(function(){ const b=document.getElementById("dBody"); if(b){ b.addEventListener("input",drawerAutoSave); b.addEventListener("change",drawerAutoSave); } })();
 boot();
 </script>
 </body>
