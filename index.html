@@ -535,7 +535,7 @@
 <div class="modal" id="lvrModal"><div class="box">
   <div class="mh"><span>實價登錄查詢</span><button class="dclose" onclick="closeLvr()">✕</button></div>
   <div class="mb">
-    <div style="color:var(--muted);font-size:13px;line-height:1.7">已開啟內政部「不動產交易實價查詢服務網」，並把地址複製到剪貼簿，可直接貼上搜尋。<br>查到後把「成交總價」和「交易日期（＝簽約日期）」填在下面，按「填入並儲存」。</div>
+    <div style="color:var(--muted);font-size:13px;line-height:1.7">已開啟內政部「不動產交易實價查詢服務網」。請依下方在網站上選「縣市、鄉鎮市區」，門牌欄位直接貼上（已複製）。<br>查到後把「成交總價」和「交易日期（＝簽約日期）」填在下面，按「填入並儲存」。</div>
     <div id="lvrAddr" style="font-weight:700;margin:10px 0;word-break:break-all"></div>
     <div class="grid2">
       <div><div class="miniL">成交總價</div><input class="din" id="lvrPrice" data-unit="萬" placeholder="輸入數字（單位：萬）"></div>
@@ -1787,9 +1787,23 @@ document.addEventListener("click",e=>{
   if(combo && !combo.contains(e.target)) document.getElementById("pOwnerList").classList.remove("show");
 });
 function closePropModal(){document.getElementById("propModal").classList.remove("show");}
-/* ---- 實價登錄查詢：開官網＋複製地址，查到後手動填回 ---- */
-let _lvrRef=null;
+/* ---- 實價登錄查詢：開官網＋自動判斷縣市/區、門牌自動複製，查到後手動填回 ---- */
+let _lvrRef=null, _lvrCopy="";
 const LVR_URL="https://lvr.land.moi.gov.tw/";
+// 把台灣地址拆成 縣市 / 鄉鎮市區 / 門牌（門牌去掉樓層，實價登錄以門牌為準）
+function parseTwAddr(addr){
+  addr=(addr||"").trim();
+  const cities=["基隆市","臺北市","台北市","新北市","桃園市","新竹市","新竹縣","苗栗縣","臺中市","台中市","南投縣","彰化縣","雲林縣","嘉義市","嘉義縣","臺南市","台南市","高雄市","屏東縣","宜蘭縣","花蓮縣","臺東縣","台東縣","澎湖縣","金門縣","連江縣"];
+  let city="", rest=addr;
+  for(const c of cities){ if(addr.startsWith(c)){ city=c; rest=addr.slice(c.length); break; } }
+  const cityNorm=city.replace(/^台/,"臺");   // 官網用「臺」
+  let dist="", door=rest;
+  const m=rest.match(/^(.+?(?:區|鄉|鎮|市))(.*)$/);
+  if(m){ dist=m[1]; door=m[2]; }
+  const hm=door.match(/^(.*?號(?:之\d+)?)/);   // 取到「號」為止，去掉樓層
+  const doorClean=(hm?hm[1]:door).trim();
+  return {city:cityNorm, dist, door:doorClean||door.trim(), raw:addr};
+}
 function openLvrLookup(){
   if(!renoRef){ toast("請先開啟物件"); return; }
   const s=students.find(x=>x.id===renoRef.sid); const p=s&&(s.properties||[]).find(x=>x.id===renoRef.pid);
@@ -1797,15 +1811,23 @@ function openLvrLookup(){
   _lvrRef={sid:renoRef.sid,pid:renoRef.pid};
   const addrEl=document.getElementById("rAddr");
   const addr=((addrEl?addrEl.value:p.address)||"").trim();
-  document.getElementById("lvrAddr").textContent=addr?("物件地址："+addr):"（此物件尚未填地址）";
+  const a=parseTwAddr(addr);
+  _lvrCopy=a.door||addr;   // 要自動複製的門牌
+  const box=document.getElementById("lvrAddr");
+  if(!addr){ box.innerHTML='<span style="color:var(--muted)">此物件尚未填地址</span>'; _lvrCopy=""; }
+  else box.innerHTML=
+    '<div style="margin-bottom:6px">物件地址：'+esc(addr)+'</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">'+
+      '<span class="tag" style="background:#12433D;color:#fff">縣市：'+esc(a.city||"？")+'</span>'+
+      '<span class="tag" style="background:#12433D;color:#fff">鄉鎮市區：'+esc(a.dist||"？")+'</span>'+
+      '<span class="tag" style="background:#B0771C;color:#fff">門牌（已複製，貼上即可）：'+esc(a.door||addr)+'</span>'+
+    '</div>';
   document.getElementById("lvrPrice").value=""; document.getElementById("lvrDate").value="";
   openLvrSite();
   document.getElementById("lvrModal").classList.add("show");
 }
 function openLvrSite(){
-  const t=document.getElementById("lvrAddr").textContent||"";
-  const addr=t.replace(/^物件地址：/,"").trim();
-  if(addr && addr[0]!=="（"){ try{ const r=navigator.clipboard&&navigator.clipboard.writeText(addr); if(r&&r.catch) r.catch(()=>{}); }catch(e){} }
+  if(_lvrCopy){ try{ const r=navigator.clipboard&&navigator.clipboard.writeText(_lvrCopy); if(r&&r.catch) r.catch(()=>{}); }catch(e){} }
   window.open(LVR_URL,"_blank");
 }
 function closeLvr(){ document.getElementById("lvrModal").classList.remove("show"); _lvrRef=null; }
