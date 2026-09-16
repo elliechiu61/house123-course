@@ -87,6 +87,11 @@
   tbody tr:last-child td{border-bottom:none}
   .name{font-weight:700;font-size:14.5px;min-width:3.2em}
   .name .pin{font-size:11px;color:var(--brand);font-weight:700;margin-left:6px}
+  /* 助教角色：隱藏物件相關與管理功能 */
+  body.role-assistant .admin-only,
+  body.role-assistant .propcol,
+  body.role-assistant .name .pin{display:none !important}
+  .robadge{display:inline-block;font-size:11px;font-weight:700;color:#B0771C;background:#fdf3e2;border:1px solid #e9d5ad;border-radius:6px;padding:2px 8px;margin-left:8px}
   .cell-sub{color:var(--muted);font-size:12.5px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .cell-wrap{color:var(--muted);font-size:12.5px;width:8em;max-width:8em;white-space:normal;overflow-wrap:break-word;word-break:break-word;line-height:1.45}
   .price-wrap{font-size:13px;width:9em;max-width:9em;white-space:normal;overflow-wrap:break-word;word-break:break-word;line-height:1.45}
@@ -352,17 +357,17 @@
   <div class="toolbar">
     <div class="seg">
       <button id="vList" class="on" onclick="setView('list')">學員列表</button>
-      <button id="vReno" onclick="setView('reno')">物件改建專區</button>
+      <button id="vReno" class="admin-only" onclick="setView('reno')">物件改建專區</button>
       <button id="vStats" onclick="setView('stats')">統計總覽</button>
     </div>
     <div class="spacer"></div>
     <button class="btn" id="btnTodo" onclick="setView('todo')">待辦項目</button>
-    <button class="btn" onclick="openCohortMgr()">班級管理</button>
-    <button class="btn" onclick="openTagMgr()">標籤管理</button>
-    <button class="btn" onclick="openImport()">匯入 Excel</button>
+    <button class="btn admin-only" onclick="openCohortMgr()">班級管理</button>
+    <button class="btn admin-only" onclick="openTagMgr()">標籤管理</button>
+    <button class="btn admin-only" onclick="openImport()">匯入 Excel</button>
     <button class="btn" onclick="exportCsv()">匯出 CSV</button>
-    <button class="btn" onclick="backupAll()">備份</button>
-    <button class="btn" onclick="document.getElementById('restoreFile').click()">還原</button>
+    <button class="btn admin-only" onclick="backupAll()">備份</button>
+    <button class="btn admin-only" onclick="document.getElementById('restoreFile').click()">還原</button>
     <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restorePicked(this)">
     <button class="btn primary" onclick="openAdd()">＋ 新增學員</button>
   </div>
@@ -411,7 +416,7 @@
           <th>房產</th>
           <th class="cell-hide">房貸</th>
           <th class="sortable" data-sort="readiness" onclick="setSort('readiness')">準備度 <span class="arw">↕</span></th>
-          <th class="cell-hide">物件</th>
+          <th class="cell-hide propcol">物件</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -804,6 +809,7 @@ async function startApp(){
   if(appStarted){ return; } appStarted=true;
   document.getElementById("authGate").classList.add("hide");
   document.getElementById("userEmail").textContent=currentUser?currentUser.email:"";
+  applyRole();
   const st=document.getElementById("storeStatus");
   st.textContent="☁ 已連線雲端 · 團隊即時同步"; st.style.color="#0A6444";
   document.getElementById("storeWarn").style.display="none";
@@ -1055,7 +1061,16 @@ function sorted(list){const{key,dir}=sort;return[...list].sort((a,b)=>{let x=a[k
 function setSort(key){if(sort.key===key)sort.dir*=-1;else{sort.key=key;sort.dir=1;}render();}
 
 /* view */
+/* ---------- 角色權限：助教 ----------
+   助教可新增學員、只能編輯自己新增的學員，看不到物件資料。前端限制（UI 層）。 */
+const ASSISTANT_EMAILS=["service@house123.com.tw"];
+function isAssistant(){ return !!(currentUser && ASSISTANT_EMAILS.includes(((currentUser.email)||"").trim().toLowerCase())); }
+function canEditStudent(s){ return !isAssistant() || !!(s && s.createdBy && currentUser && s.createdBy===currentUser.email); }
+function applyRole(){ document.body.classList.toggle("role-assistant", isAssistant()); }
+function guardEdit(s){ if(canEditStudent(s)) return true; toast("助教僅能編輯自己新增的學員"); return false; }
+
 function setView(v){
+  if(isAssistant() && v==="reno"){ toast("助教無法檢視物件資料"); v="list"; }
   view=v;
   document.body.classList.remove("scrolled");
   document.getElementById("vList").classList.toggle("on",v==="list");
@@ -1139,12 +1154,12 @@ function renderPropCell(s){
     return '<div class="propchip" title="前往物件改建專區" onclick="event.stopPropagation();gotoReno(\''+s.id+'\',\''+p.id+'\')"><span class="pa">'+esc(p.address||'未填地址')+'</span>'+hd+' '+st+'</div>';
   }).join('');
 }
-async function setPrivate(ev,sid){ ev.stopPropagation(); const s=students.find(x=>x.id===sid); if(!s)return; s.privateCircle=ev.target.value; await saveStudents(); }
-async function setEnglish(ev,sid){ ev.stopPropagation(); const s=students.find(x=>x.id===sid); if(!s)return; s.englishName=ev.target.value; await saveStudents(); }
+async function setPrivate(ev,sid){ ev.stopPropagation(); const s=students.find(x=>x.id===sid); if(!s)return; if(!guardEdit(s)){ renderTable(); return; } s.privateCircle=ev.target.value; await saveStudents(); }
+async function setEnglish(ev,sid){ ev.stopPropagation(); const s=students.find(x=>x.id===sid); if(!s)return; if(!guardEdit(s)){ renderTable(); return; } s.englishName=ev.target.value; await saveStudents(); }
 let statusPopSid=null;
 function openStatusPop(ev,sid){
   ev.stopPropagation();
-  const s=students.find(x=>x.id===sid); if(!s) return; statusPopSid=sid;
+  const s=students.find(x=>x.id===sid); if(!s) return; if(!guardEdit(s)) return; statusPopSid=sid;
   const cur=s.status||"";
   const pop=document.getElementById("tagPop");
   const item=o=>'<div class="ti'+(o.key===cur?" cur":"")+'" onclick="setStatusSingle(\''+o.key+'\')"><span class="dot" style="background:'+o.color+'"></span>'+esc(o.label)+(o.key===cur?' ✓':'')+'</div>';
@@ -1186,7 +1201,7 @@ function collectDrawerFields(s){
   const av=g("dAge"); if(av!==undefined){ s.ageRaw=av; s.age=parseNum(av); }
 }
 async function addConsult(){
-  const s=students.find(x=>x.id===selectedId); if(!s)return;
+  const s=students.find(x=>x.id===selectedId); if(!s)return; if(!guardEdit(s))return;
   const content=document.getElementById("cContent").value.trim();
   if(!content){ toast("請輸入諮詢內容"); return; }
   collectDrawerFields(s);
@@ -1209,10 +1224,11 @@ function renderTable(){
     const so=ssById(s.status); const statusCell=so?statusPill(so):'<span style="color:var(--muted)">—</span>';
     const tr=document.createElement("tr"); tr.onclick=()=>openDrawer(s.id);
     const checked=selected.has(s.id)?" checked":"";
+    const ro=canEditStudent(s)?"":" readonly";
     tr.innerHTML='<td class="selcol" onclick="event.stopPropagation()"><input type="checkbox" class="rowcheck"'+checked+' onclick="toggleSelect(event,'+s.id+')"></td>'+
       '<td><div class="name">'+esc(s.name)+pin+(((s.todos||[]).filter(t=>!t.done).length)?'<span class="todobadge" title="待辦">'+(s.todos||[]).filter(t=>!t.done).length+'</span>':'')+'</div></td>'+
-      '<td onclick="event.stopPropagation()"><input class="pcin" value="'+esc(s.englishName||"")+'" placeholder="—" onchange="setEnglish(event,'+s.id+')"></td>'+
-      '<td onclick="event.stopPropagation()"><input class="pcin" value="'+esc(s.privateCircle||"")+'" placeholder="—" onchange="setPrivate(event,'+s.id+')"></td>'+
+      '<td onclick="event.stopPropagation()"><input class="pcin" value="'+esc(s.englishName||"")+'" placeholder="—"'+ro+' onchange="setEnglish(event,'+s.id+')"></td>'+
+      '<td onclick="event.stopPropagation()"><input class="pcin" value="'+esc(s.privateCircle||"")+'" placeholder="—"'+ro+' onchange="setPrivate(event,'+s.id+')"></td>'+
       '<td onclick="event.stopPropagation();openTagPop(event,'+s.id+')"><span class="tagcell" title="點擊變更">'+tags_html+'</span></td>'+
       '<td onclick="event.stopPropagation();openStatusPop(event,'+s.id+')"><span class="tagcell" title="點擊變更狀態">'+statusCell+'</span></td>'+
       '<td class="cell-hide"><div class="cell-wrap" title="'+esc(s.currentCity)+'">'+esc(s.currentCity||"—")+'</div></td>'+
@@ -1221,7 +1237,7 @@ function renderTable(){
       '<td><span class="yn '+(["有","只有繼承的房子"].includes(s.hasProperty)?"y":((s.hasProperty==="無"||s.hasProperty==="沒有")?"n":""))+'">'+shortProp(s.hasProperty)+'</span></td>'+
       '<td class="cell-hide"><span class="yn '+((s.hasMortgage&&s.hasMortgage!=="無"&&s.hasMortgage!=="未填")?"y":(s.hasMortgage==="無"?"n":""))+'">'+shortMort(s.hasMortgage)+'</span></td>'+
       '<td>'+readyCell+'</td>'+
-      '<td class="cell-hide">'+renderPropCell(s)+'</td>';
+      '<td class="cell-hide propcol">'+renderPropCell(s)+'</td>';
     tb.appendChild(tr);
   });
   refreshSelectionUI(list);
@@ -1258,7 +1274,7 @@ function bindListScroll(){
 let tagPopSid=null;
 function openTagPop(ev,sid){
   ev.stopPropagation();
-  const s=students.find(x=>x.id===sid); if(!s) return;
+  const s=students.find(x=>x.id===sid); if(!s) return; if(!guardEdit(s)) return;
   tagPopSid=sid;
   const cur=(s.tagIds||[])[0]||"";
   const pop=document.getElementById("tagPop");
@@ -1333,6 +1349,7 @@ function bulkAddTodo(){
 }
 function closeBulkTodo(){ document.getElementById("bulkTodoModal").classList.remove("show"); }
 async function submitBulkTodo(preset){
+  if(isAssistant()){ toast("助教無法批次編輯學員"); return; }
   const text=(preset!==undefined?preset:document.getElementById("bulkTodoText").value).trim();
   if(!text){ toast("請輸入待辦內容"); return; }
   let cnt=0, base=Date.now();
@@ -1433,6 +1450,7 @@ async function todoMutate(cohortId,studentId,fn){
   const inMem=cohortId===activeCohort;
   const list=inMem?students:await loadStudents(cohortId);
   const s=list.find(x=>String(x.id)===String(studentId)); if(!s)return;
+  if(!canEditStudent(s)){ toast("助教僅能編輯自己新增的學員"); renderTodoView(); return; }
   s.todos=s.todos||[]; fn(s);
   if(inMem){ await saveStudents(); } else { await sSet("students:"+cohortId,JSON.stringify(list)); }
   renderTodoView();
@@ -1465,9 +1483,10 @@ async function renderTodoView(){
   const sortFn=(a,b)=>(a.t.done-b.t.done)||dueCmp(a.t.due,b.t.due);
   stuRows.sort(sortFn); propRows.sort(sortFn);
   const openStu=stuRows.filter(r=>!r.t.done).length, openProp=propRows.filter(r=>!r.t.done).length;
+  if(isAssistant()) todoTab='student';
   let html='<div class="todotabs">'+
     '<button class="ttab'+(todoTab==="student"?" on":"")+'" onclick="setTodoTab(\'student\')">學員待辦（'+openStu+'）</button>'+
-    '<button class="ttab'+(todoTab==="prop"?" on":"")+'" onclick="setTodoTab(\'prop\')">物件待辦（'+openProp+'）</button>'+
+    (isAssistant()?'':'<button class="ttab'+(todoTab==="prop"?" on":"")+'" onclick="setTodoTab(\'prop\')">物件待辦（'+openProp+'）</button>')+
   '</div>';
   const isStu=todoTab!=="prop";
   const rows=isStu?stuRows:propRows;
@@ -1601,7 +1620,7 @@ function renderStats(){
 
   const kpiCards = [kpi(N,"學員總數")].concat(
     tags.slice(0,3).map(t=>kpi(tagUsage(t.id),t.name)),
-    [kpi(props.length,"買到物件")]
+    isAssistant()?[]:[kpi(props.length,"買到物件")]
   ).join("");
 
   el.innerHTML='<div class="kpis">'+kpiCards+'</div>'+
@@ -1609,7 +1628,7 @@ function renderStats(){
       '<div class="panel"><h3>準備度分布（滿分 10）</h3><div class="hist">'+hist.map((v,i)=>'<div class="col"><div class="bar" style="height:'+(v/hmax*100)+'%">'+(v?'<span>'+v+'</span>':'')+'</div><div class="xl">'+(i+1)+'</div></div>').join("")+'</div></div>'+
       '<div class="panel"><h3>標籤分布</h3>'+barlist(tagCounts,N)+'</div>'+
       '<div class="panel"><h3>希望購入地區</h3>'+barlist(regionCounts,N)+'</div>'+
-      '<div class="panel"><h3>物件改建階段</h3>'+(props.length?barlist(stageCounts,props.length):'<div style="color:var(--muted);font-size:13px">尚無買到的物件</div>')+'</div>'+
+      (isAssistant()?'':'<div class="panel"><h3>物件改建階段</h3>'+(props.length?barlist(stageCounts,props.length):'<div style="color:var(--muted);font-size:13px">尚無買到的物件</div>')+'</div>')+
       '<div class="panel"><h3>名下房產</h3>'+barlist(propCounts,N)+'</div>'+
       '<div class="panel"><h3>名下房貸</h3>'+barlist(mortCounts,N)+'</div>'+
       '<div class="panel" style="grid-column:1/-1"><h3>適合總價分布</h3>'+barlist(priceCounts,N)+'</div>'+
@@ -1670,7 +1689,7 @@ function openDrawer(id,keepHist){
     '</div></div>'+
     '<div class="track"><h4>標籤 <span class="mini" style="color:var(--brand);cursor:pointer" onclick="openTagMgr()">＋ 管理標籤</span></h4><div class="flagbtns" id="drawerTags">'+tagBtns+'</div></div>'+
     '<div class="track"><h4>進度備註 / 需求</h4><textarea class="agrow" id="dProgress" oninput="autoGrow(this)" placeholder="記錄輔導進度、下一步、卡關點…">'+esc(s.progressNote||"")+'</textarea></div>'+
-    '<div class="track"><h4>買到的物件</h4>'+propHtml+'<button class="addprop" onclick="openPropModal(\''+s.id+'\')">＋ 新增買到的物件</button></div>'+
+    (isAssistant()?'':'<div class="track"><h4>買到的物件</h4>'+propHtml+'<button class="addprop" onclick="openPropModal(\''+s.id+'\')">＋ 新增買到的物件</button></div>')+
     '<div class="track"><h4>學員資料</h4>'+
       '<div class="grid2"><div><div class="miniL">職業</div><input class="din" id="dJob" value="'+esc(s.job||"")+'"></div>'+
       '<div><div class="miniL">年齡</div><input class="din" id="dAge" value="'+esc(s.ageRaw||(s.age!=null?String(s.age):""))+'"></div></div>'+
@@ -1689,7 +1708,16 @@ function openDrawer(id,keepHist){
     '</div>';
   // mark active tag buttons
   document.querySelectorAll("#drawerTags .flagbtn").forEach(b=>{ if(b.dataset.on) b.classList.add("active"); });
-  document.getElementById("dFoot").innerHTML='<button class="btn primary" onclick="saveDrawer()">儲存變更</button><button class="btn ghost" onclick="closeDrawer()">關閉</button><button class="btn" id="recUndo" title="復原這位學員的上一步變更" onclick="recUndo()" disabled>↶ 復原</button><button class="btn" id="recRedo" title="重做這位學員的下一步變更" onclick="recRedo()" disabled>↷ 重做</button><button class="btn del" style="margin-left:auto" onclick="deleteStudent()">刪除學員</button>';
+  const editable=canEditStudent(s);
+  const fab=document.querySelector(".todofab"); if(fab) fab.style.display=editable?"":"none";
+  if(editable){
+    document.getElementById("dFoot").innerHTML='<button class="btn primary" onclick="saveDrawer()">儲存變更</button><button class="btn ghost" onclick="closeDrawer()">關閉</button><button class="btn" id="recUndo" title="復原這位學員的上一步變更" onclick="recUndo()" disabled>↶ 復原</button><button class="btn" id="recRedo" title="重做這位學員的下一步變更" onclick="recRedo()" disabled>↷ 重做</button><button class="btn del" style="margin-left:auto" onclick="deleteStudent()">刪除學員</button>';
+  }else{
+    // 助教檢視他人學員：唯讀
+    document.getElementById("dMeta").innerHTML=(document.getElementById("dMeta").textContent||"")+'<span class="robadge">唯讀（僅能檢視）</span>';
+    document.querySelectorAll("#dBody input,#dBody textarea,#dBody select,#dBody button").forEach(el=>{ el.disabled=true; });
+    document.getElementById("dFoot").innerHTML='<span class="robadge">此學員非你新增，僅能檢視</span><button class="btn ghost" style="margin-left:auto" onclick="closeDrawer()">關閉</button>';
+  }
   updateRecUndoUI();
   document.getElementById("scrim").classList.add("show"); document.getElementById("drawer").classList.add("show");
   initAutoGrow(document.getElementById("dBody"));
@@ -1705,7 +1733,7 @@ function propRow(sid,p){
 function field(k,v){const blank=!v||!(''+v).trim();return '<div class="field"><div class="k">'+k+'</div><div class="v'+(blank?" blank":"")+'">'+(blank?"未填寫":esc(v))+'</div></div>';}
 function closeDrawer(){recEnd();document.getElementById("scrim").classList.remove("show");document.getElementById("drawer").classList.remove("show");selectedId=null;renoRef=null;if(refreshPending){refreshPending=false;remoteRefresh();}}
 async function saveDrawer(){
-  const s=students.find(x=>x.id===selectedId); if(!s)return;
+  const s=students.find(x=>x.id===selectedId); if(!s)return; if(!guardEdit(s))return;
   collectDrawerFields(s);
   const target=document.getElementById("dCohort").value;
   if(target && target!==activeCohort){
@@ -1726,14 +1754,15 @@ async function saveDrawer(){
   await saveStudents(); closeDrawer(); render(); toast("已儲存 "+s.name+" 的進度");
 }
 async function deleteStudent(){
-  const s=students.find(x=>x.id===selectedId); if(!s)return;
+  const s=students.find(x=>x.id===selectedId); if(!s)return; if(!guardEdit(s))return;
   if(!confirm('確定刪除學員「'+s.name+'」？此動作無法復原。'))return;
   students=students.filter(x=>x.id!==selectedId); await saveStudents(); closeDrawer(); render(); toast("已刪除 "+s.name);
 }
 
 /* property add/edit */
-function openPropModal(sid){ propEdit={sid,pid:null}; document.getElementById("pOwnerWrap").style.display="none"; document.getElementById("propModalTitle").textContent="新增買到的物件"; ["pAddr","pArea","pPrice","pDate","pDeed","pZoning","pLandBuild","pLandRoad"].forEach(i=>document.getElementById(i).value=""); document.getElementById("propModal").classList.add("show"); setTimeout(()=>document.getElementById("pAddr").focus(),50); }
+function openPropModal(sid){ if(isAssistant()){ toast("助教無法新增物件資料"); return; } propEdit={sid,pid:null}; document.getElementById("pOwnerWrap").style.display="none"; document.getElementById("propModalTitle").textContent="新增買到的物件"; ["pAddr","pArea","pPrice","pDate","pDeed","pZoning","pLandBuild","pLandRoad"].forEach(i=>document.getElementById(i).value=""); document.getElementById("propModal").classList.add("show"); setTimeout(()=>document.getElementById("pAddr").focus(),50); }
 function openPropModalReno(){
+  if(isAssistant()){ toast("助教無法新增物件資料"); return; }
   if(!students.length){ toast("此班級尚無學員，請先新增學員"); return; }
   propEdit={sid:null,pid:null,fromReno:true};
   document.getElementById("pOwner").value="";
@@ -1873,6 +1902,7 @@ function openRenoNewTab(sid,pid){
 async function handleRenoDeepLink(){
   const m=/#reno=([^/]+)\/([^/]+)\/([^/]+)/.exec(location.hash||"");
   if(!m) return;
+  if(isAssistant()){ history.replaceState(null,"",location.href.split('#')[0]); return; }
   const cid=decodeURIComponent(m[1]), sid=decodeURIComponent(m[2]), pid=decodeURIComponent(m[3]);
   history.replaceState(null,"",location.href.split('#')[0]);   // 清掉 hash，重新整理不會再觸發
   if(activeCohort!==cid && cohorts.find(c=>c.id===cid)){ await switchCohort(cid); }
@@ -2017,6 +2047,7 @@ function ownerSelect(id,curId){
   return '<select class="din" id="'+id+'">'+list.map(s=>'<option value="'+s.id+'"'+(String(s.id)===String(curId)?' selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select>';
 }
 function openProperty(sid,pid,keepHist){
+  if(isAssistant()){ toast("助教無法檢視物件資料"); return; }
   const s=students.find(x=>String(x.id)===String(sid)); if(!s)return;
   const p=(s.properties||[]).find(x=>String(x.id)===String(pid)); if(!p)return;
   renoRef={sid:s.id,pid:p.id}; selectedId=null;
@@ -2197,10 +2228,11 @@ function propAutoSave(){
 }
 function studentAutoSave(){
   if(selectedId==null) return;
+  const s0=students.find(x=>x.id===selectedId); if(s0&&!canEditStudent(s0)) return;   // 助教不能編輯他人
   clearTimeout(_drawerSaveTimer);
   _drawerSaveTimer=setTimeout(async ()=>{
     if(selectedId==null) return;
-    const s=students.find(x=>x.id===selectedId); if(!s) return;
+    const s=students.find(x=>x.id===selectedId); if(!s) return; if(!canEditStudent(s)) return;
     collectDrawerFields(s);                    // 班級搬移仍只在按「儲存變更」時處理
     try{ await saveStudents(); recordHistory(); }catch(e){}
   }, 900);
@@ -2252,7 +2284,7 @@ async function submitAdd(){
   const name=g("name"); if(!name){toast("請填寫姓名");return;}
   const ids=[]; document.querySelectorAll("#addTags .flagbtn.active").forEach(b=>ids.push(b.dataset.tag));
   const nextId=(students.reduce((m,s)=>Math.max(m,s.id),0)||0)+1;
-  students.push({id:nextId,name,currentCity:g("currentCity"),desiredCity:g("desiredCity"),price:g("price"),downPayment:g("downPayment"),decisionMaker:g("decisionMaker"),hasProperty:document.getElementById("add_hasProperty").value,hasMortgage:document.getElementById("add_hasMortgage").value,ageRaw:g("ageRaw"),age:parseNum(g("ageRaw")),job:g("job"),income:g("income"),readinessRaw:g("readinessRaw"),readiness:parseNum(g("readinessRaw")),action:g("action"),notes:g("notes"),tagIds:ids,properties:[],progressNote:"",privateCircle:g("privateCircle"),englishName:g("englishName")});
+  students.push({id:nextId,name,currentCity:g("currentCity"),desiredCity:g("desiredCity"),price:g("price"),downPayment:g("downPayment"),decisionMaker:g("decisionMaker"),hasProperty:document.getElementById("add_hasProperty").value,hasMortgage:document.getElementById("add_hasMortgage").value,ageRaw:g("ageRaw"),age:parseNum(g("ageRaw")),job:g("job"),income:g("income"),readinessRaw:g("readinessRaw"),readiness:parseNum(g("readinessRaw")),action:g("action"),notes:g("notes"),tagIds:ids,properties:[],progressNote:"",privateCircle:g("privateCircle"),englishName:g("englishName"),createdBy:(currentUser&&currentUser.email)||""});
   await saveStudents(); closeAdd(); render(); toast("已新增學員 "+name);
 }
 
