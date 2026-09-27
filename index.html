@@ -1592,7 +1592,7 @@ function renderReno(){
     const card=document.createElement("div"); card.className="propcard";
     card.onclick = activeCohort==="__all__" ? (()=>openPropertyFromAll(s.__cohort,s.id,p.id)) : (()=>openProperty(s.id,p.id));
     const ob=p.old||{};
-    const ownerLine=[s.name,p.price,ob.landBuild,ob.zoning].filter(Boolean).map(esc).join(" · ");
+    const ownerLine=[s.name,p.price,ob.landBuild,p.parcel,ob.zoning].filter(Boolean).map(esc).join(" · ");
     card.innerHTML='<div class="addr">'+esc(p.address||"未填地址")+'</div>'+
       '<div class="owner">'+ownerLine+'</div>'+pill+rolePill+
       (p.handoverDate?'<div class="stepwrap"><div class="lbl"><span>交屋日期</span><span>'+esc(p.handoverDate)+'</span></div></div>':'')+
