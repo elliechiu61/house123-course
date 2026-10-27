@@ -92,6 +92,10 @@
   body.role-assistant .propcol,
   body.role-assistant .name .pin{display:none !important}
   .robadge{display:inline-block;font-size:11px;font-weight:700;color:#B0771C;background:#fdf3e2;border:1px solid #e9d5ad;border-radius:6px;padding:2px 8px;margin-left:8px}
+  .leadtbl{width:100%;border-collapse:collapse;font-size:13px}
+  .leadtbl th,.leadtbl td{white-space:nowrap;padding:8px 10px;border-bottom:1px solid var(--line-soft);text-align:left}
+  .leadtbl th{position:sticky;top:0;background:var(--panel);z-index:1;font-size:12px;color:var(--muted);font-weight:700}
+  .leadtbl tbody tr:hover{background:var(--line-soft)}
   .cell-sub{color:var(--muted);font-size:12.5px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .cell-wrap{color:var(--muted);font-size:12.5px;width:8em;max-width:8em;white-space:normal;overflow-wrap:break-word;word-break:break-word;line-height:1.45}
   .price-wrap{font-size:13px;width:9em;max-width:9em;white-space:normal;overflow-wrap:break-word;word-break:break-word;line-height:1.45}
@@ -437,6 +441,7 @@
       <div class="fgrp"><label style="font-size:11px;font-weight:700;color:var(--muted)">搜尋地址</label>
         <input id="renoSearch" type="search" placeholder="輸入部分地址…" oninput="renderReno()" style="min-width:180px"></div>
       <div class="spacer"></div>
+      <button class="btn" onclick="openLeadTable()">📋 主導物件總表</button>
       <button class="btn primary" onclick="openPropModalReno()">＋ 新增物件</button>
     </div>
     <div class="resultline" id="renoLine"></div>
@@ -548,6 +553,15 @@
     </div>
   </div>
   <div class="mf"><button class="btn primary" onclick="applyLvr()">填入並儲存</button><button class="btn" onclick="openLvrSite()">重新開啟網站</button><button class="btn ghost" onclick="closeLvr()">取消</button></div>
+</div></div>
+
+<!-- 主導物件總表 -->
+<div class="modal" id="leadTableModal"><div class="box" style="max-width:min(1200px,96vw);width:96vw">
+  <div class="mh"><span>主導物件總表 <span id="leadCount" style="color:var(--muted);font-weight:400;font-size:13px"></span></span><button class="dclose" onclick="closeLeadTable()">✕</button></div>
+  <div class="mb" style="overflow:auto;max-height:72vh">
+    <div id="leadTableWrap"></div>
+  </div>
+  <div class="mf"><button class="btn" onclick="exportLeadCsv()">匯出 CSV</button><button class="btn ghost" style="margin-left:auto" onclick="closeLeadTable()">關閉</button></div>
 </div></div>
 
 <!-- Bulk todo modal -->
@@ -1526,6 +1540,45 @@ function allProperties(){
   students.forEach(s=>(s.properties||[]).forEach(p=>out.push({s,p})));
   return out;
 }
+/* 主導物件總表 */
+const LEAD_COLS=[
+  ["地址", r=>r.p.address||""],
+  ["屋主", r=>r.s.name||""],
+  ["登記人", r=>r.p.registrant||""],
+  ["持有標籤", r=>{const o=psById(r.p.status);return o?o.label:"";}],
+  ["改建標籤", r=>{const o=psById(r.p.renoStatus);return o?o.label:"";}],
+  ["是否已簽合資合約", r=>r.p.hasJVContract===true?"是":(r.p.hasJVContract===false?"否":"")],
+  ["開發商", r=>r.p.developer||""],
+  ["建商", r=>r.p.builder||""],
+  ["購買的總價", r=>r.p.price||""],
+  ["預估分回價值", r=>r.p.estValue||""]
+];
+function leadRows(){ return allProperties().filter(r=>(r.p.role||"")==="主導"); }
+function openLeadTable(){
+  if(isAssistant()){ toast("助教無法檢視物件資料"); return; }
+  const rows=leadRows();
+  document.getElementById("leadCount").textContent="共 "+rows.length+" 件";
+  let html='<table class="leadtbl"><thead><tr>'+LEAD_COLS.map(c=>'<th>'+esc(c[0])+'</th>').join("")+'</tr></thead><tbody>';
+  if(!rows.length){ html+='<tr><td colspan="'+LEAD_COLS.length+'" style="text-align:center;color:var(--muted);padding:24px">目前沒有「主導」的物件</td></tr>'; }
+  else rows.forEach(r=>{
+    const cid=r.s.__cohort;
+    const click=activeCohort==="__all__"?('openPropertyFromAll(\''+cid+'\',\''+r.s.id+'\',\''+r.p.id+'\')'):('openProperty(\''+r.s.id+'\',\''+r.p.id+'\')');
+    html+='<tr style="cursor:pointer" title="點擊開啟物件" onclick="closeLeadTable();'+click+'">'+
+      LEAD_COLS.map(c=>{const v=c[1](r);return '<td>'+(v?esc(v):'<span style="color:var(--muted)">—</span>')+'</td>';}).join("")+'</tr>';
+  });
+  html+='</tbody></table>';
+  document.getElementById("leadTableWrap").innerHTML=html;
+  document.getElementById("leadTableModal").classList.add("show");
+}
+function closeLeadTable(){ document.getElementById("leadTableModal").classList.remove("show"); }
+function exportLeadCsv(){
+  const rows=leadRows();
+  const lines=[LEAD_COLS.map(c=>c[0])].concat(rows.map(r=>LEAD_COLS.map(c=>c[1](r))));
+  const csv=lines.map(row=>row.map(v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"').join(",")).join("\r\n");
+  const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob); const a=document.createElement("a");
+  a.href=url; a.download="主導物件總表.csv"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
 function consultListHtml(s){
   const a=(s.consultations||[]).slice().reverse();
   if(!a.length) return '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">尚無諮詢紀錄</div>';
@@ -2447,7 +2500,7 @@ function restorePicked(inp){
 
 function esc(s){return(''+(s==null?"":s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 let toastT; function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),2200);}
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeDrawer();closeAdd();closeCohort();closeTagMgr();closePropModal();closeImport();closeCohortMgr();closeBulkTodo();closeLvr();}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeDrawer();closeAdd();closeCohort();closeTagMgr();closePropModal();closeImport();closeCohortMgr();closeBulkTodo();closeLvr();closeLeadTable();}});
 window.addEventListener("resize",()=>{ if(typeof fitTable==="function") fitTable(); });
 
 // Auto-save the property drawer as it is edited. Delegated on the stable #dBody
