@@ -1554,11 +1554,26 @@ const LEAD_COLS=[
   ["預估分回價值", r=>r.p.estValue||""]
 ];
 function leadRows(){ return allProperties().filter(r=>(r.p.role||"")==="主導"); }
+let leadSort={col:-1,dir:1};
+function sortLead(i){ if(leadSort.col===i) leadSort.dir=-leadSort.dir; else leadSort={col:i,dir:1}; openLeadTable(); }
+function sortedLeadRows(){
+  const rows=leadRows(); const i=leadSort.col; if(i<0) return rows;
+  const dir=leadSort.dir, startsNum=s=>/^-?\d/.test(s);
+  return rows.slice().sort((a,b)=>{
+    const va=(LEAD_COLS[i][1](a)||"").trim(), vb=(LEAD_COLS[i][1](b)||"").trim();
+    if(!va&&!vb) return 0; if(!va) return 1; if(!vb) return -1;          // 空值永遠排最後
+    let r;
+    if(startsNum(va)&&startsNum(vb)) r=(parseFloat(va.replace(/,/g,""))||0)-(parseFloat(vb.replace(/,/g,""))||0);
+    else r=va.localeCompare(vb,"zh-Hant");
+    return r*dir;
+  });
+}
 function openLeadTable(){
   if(isAssistant()){ toast("助教無法檢視物件資料"); return; }
-  const rows=leadRows();
+  const rows=sortedLeadRows();
   document.getElementById("leadCount").textContent="共 "+rows.length+" 件";
-  let html='<table class="leadtbl"><thead><tr>'+LEAD_COLS.map(c=>'<th>'+esc(c[0])+'</th>').join("")+'</tr></thead><tbody>';
+  const arrow=i=>i===leadSort.col?(leadSort.dir>0?' ▲':' ▼'):' <span style="color:var(--line)">↕</span>';
+  let html='<table class="leadtbl"><thead><tr>'+LEAD_COLS.map((c,i)=>'<th onclick="sortLead('+i+')" style="cursor:pointer;user-select:none" title="點擊排序">'+esc(c[0])+arrow(i)+'</th>').join("")+'</tr></thead><tbody>';
   if(!rows.length){ html+='<tr><td colspan="'+LEAD_COLS.length+'" style="text-align:center;color:var(--muted);padding:24px">目前沒有「主導」的物件</td></tr>'; }
   else rows.forEach(r=>{
     const cid=r.s.__cohort;
@@ -1572,7 +1587,7 @@ function openLeadTable(){
 }
 function closeLeadTable(){ document.getElementById("leadTableModal").classList.remove("show"); }
 function exportLeadCsv(){
-  const rows=leadRows();
+  const rows=sortedLeadRows();
   const lines=[LEAD_COLS.map(c=>c[0])].concat(rows.map(r=>LEAD_COLS.map(c=>c[1](r))));
   const csv=lines.map(row=>row.map(v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"').join(",")).join("\r\n");
   const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});
