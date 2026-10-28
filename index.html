@@ -1458,7 +1458,7 @@ function deletePropTodoGlobal(cid,sid,pid,tid){ if(!confirm("刪除此待辦？"
 function setPropTodoDue(cid,sid,pid,tid,val){ propTodoMutate(cid,sid,pid,p=>{const t=p.todos.find(z=>z.id===tid);if(t)t.due=val;}); }
 function setStudentTodoDue(cid,sid,tid,val){ todoMutate(cid,sid,x=>{const t=(x.todos||[]).find(z=>z.id===tid);if(t)t.due=val;}); }
 let todoTab='student';
-function setTodoTab(t){ todoTab=t; renderTodoView(); }
+function setTodoTab(t){ todoTab=t; paintTodo(); }
 function dueCmp(a,b){ if(!a&&!b)return 0; if(!a)return 1; if(!b)return -1; return a<b?-1:(a>b?1:0); }
 async function todoMutate(cohortId,studentId,fn){
   const inMem=cohortId===activeCohort;
@@ -1494,8 +1494,28 @@ async function renderTodoView(){
       (s.properties||[]).forEach(p=>(p.todos||[]).forEach(t=>propRows.push({c,s,p,t})));
     });
   }
-  const sortFn=(a,b)=>(a.t.done-b.t.done)||dueCmp(a.t.due,b.t.due);
-  stuRows.sort(sortFn); propRows.sort(sortFn);
+  _todoRows={stuRows,propRows};
+  paintTodo();
+}
+let _todoRows={stuRows:[],propRows:[]};
+let todoSort={col:null,dir:1};
+function setTodoSort(key){ if(todoSort.col===key) todoSort.dir=-todoSort.dir; else todoSort={col:key,dir:1}; paintTodo(); }
+function todoCellVal(r,key,isStu){ const t=r.t; if(key==='done')return t.done?1:0; if(key==='due')return t.due||""; if(key==='owner')return isStu?(r.s.name||""):(r.p.address||""); if(key==='text')return t.text||""; return ""; }
+function sortTodoRows(rows,isStu){
+  if(!todoSort.col) return rows.slice().sort((a,b)=>(a.t.done-b.t.done)||dueCmp(a.t.due,b.t.due));   // 預設：未完成在前、依到期日
+  const key=todoSort.col, dir=todoSort.dir;
+  return rows.slice().sort((a,b)=>{
+    const va=todoCellVal(a,key,isStu), vb=todoCellVal(b,key,isStu);
+    if(key==='done') return (va-vb)*dir;
+    const sa=(''+va).trim(), sb=(''+vb).trim();
+    if(!sa&&!sb) return 0; if(!sa) return 1; if(!sb) return -1;   // 空值排最後
+    if(key==='due') return dueCmp(sa,sb)*dir;
+    return sa.localeCompare(sb,"zh-Hant")*dir;
+  });
+}
+function paintTodo(){
+  const el=document.getElementById("todoView"); if(!el) return;
+  const stuRows=_todoRows.stuRows, propRows=_todoRows.propRows;
   const openStu=stuRows.filter(r=>!r.t.done).length, openProp=propRows.filter(r=>!r.t.done).length;
   if(isAssistant()) todoTab='student';
   let html='<div class="todotabs">'+
@@ -1503,10 +1523,14 @@ async function renderTodoView(){
     (isAssistant()?'':'<button class="ttab'+(todoTab==="prop"?" on":"")+'" onclick="setTodoTab(\'prop\')">物件待辦（'+openProp+'）</button>')+
   '</div>';
   const isStu=todoTab!=="prop";
-  const rows=isStu?stuRows:propRows;
+  const rows=sortTodoRows(isStu?stuRows:propRows, isStu);
   if(!rows.length){ el.innerHTML=html+'<div class="empty"><b>目前沒有待辦</b>打開'+(isStu?'學員':'物件')+'後，按右下角「＋ 待辦」新增</div>'; return; }
+  const arrow=k=>todoSort.col===k?(todoSort.dir>0?' ▲':' ▼'):' <span style="color:var(--line)">↕</span>';
   html+='<div class="tablecard"><table class="tbl"><thead><tr>'+
-    '<th style="width:32px"></th><th style="width:150px">到期日</th><th style="min-width:8em">'+(isStu?'學員':'物件／登記人')+'</th><th>待辦內容</th>'+
+    '<th style="width:40px;cursor:pointer;user-select:none" title="依完成狀態排序" onclick="setTodoSort(\'done\')">✓'+arrow('done')+'</th>'+
+    '<th style="width:160px;cursor:pointer;user-select:none" title="點擊排序" onclick="setTodoSort(\'due\')">到期日'+arrow('due')+'</th>'+
+    '<th style="min-width:8em;cursor:pointer;user-select:none" title="點擊排序" onclick="setTodoSort(\'owner\')">'+(isStu?'學員':'物件／登記人')+arrow('owner')+'</th>'+
+    '<th style="cursor:pointer;user-select:none" title="點擊排序" onclick="setTodoSort(\'text\')">待辦內容'+arrow('text')+'</th>'+
     '</tr></thead><tbody>';
   rows.forEach(r=>{
     const c=r.c, s=r.s, t=r.t, done=t.done;
