@@ -369,6 +369,7 @@
     <button class="btn admin-only" onclick="openCohortMgr()">班級管理</button>
     <button class="btn admin-only" onclick="openTagMgr()">標籤管理</button>
     <button class="btn admin-only" onclick="openImport()">匯入 Excel</button>
+    <button class="btn admin-only" onclick="openDupCheck()">🧹 檢查重複</button>
     <button class="btn" onclick="exportCsv()">匯出 CSV</button>
     <button class="btn admin-only" onclick="backupAll()">備份</button>
     <button class="btn admin-only" onclick="document.getElementById('restoreFile').click()">還原</button>
@@ -562,6 +563,13 @@
     <div id="leadTableWrap"></div>
   </div>
   <div class="mf"><button class="btn" onclick="exportLeadCsv()">匯出 CSV</button><button class="btn ghost" style="margin-left:auto" onclick="closeLeadTable()">關閉</button></div>
+</div></div>
+
+<!-- 檢查重複 -->
+<div class="modal" id="dupModal"><div class="box" style="max-width:min(760px,96vw)">
+  <div class="mh"><span>檢查重複資料</span><button class="dclose" onclick="closeDupCheck()">✕</button></div>
+  <div class="mb" style="overflow:auto;max-height:70vh"><div id="dupReport">掃描中…</div></div>
+  <div class="mf"><button class="btn" id="dupCleanBtn" onclick="cleanDupSafe()" style="display:none;color:var(--danger);border-color:#eccbc7">清除可安全清除的重複</button><button class="btn ghost" style="margin-left:auto" onclick="closeDupCheck()">關閉</button></div>
 </div></div>
 
 <!-- Bulk todo modal -->
@@ -1568,6 +1576,67 @@ function allProperties(){
   }));
   return out;
 }
+/* ---------- 檢查/清除重複資料 ---------- */
+function _scoreStudent(s){ let n=0; for(const k in s){ if(k==="__cohort")continue; const v=s[k]; if(Array.isArray(v)) n+=v.length; else if(v!=null&&v!=="") n++; } return n; }
+async function dupScan(){
+  const r={items:[], safeCount:0};
+  const seen=new Set(); let cohortDup=0; cohorts.forEach(c=>{ if(seen.has(c.id)) cohortDup++; else seen.add(c.id); });
+  if(cohortDup){ r.items.push({txt:"班級清單有 "+cohortDup+" 筆重複（同一班級被列兩次）", safe:true}); r.safeCount+=cohortDup; }
+  const uniqC=[]; const s2=new Set(); cohorts.forEach(c=>{ if(!s2.has(c.id)){s2.add(c.id);uniqC.push(c);} });
+  for(const c of uniqC){
+    const list=await loadStudents(c.id);
+    const byId=new Set(), nameCount=new Map(); let dupStu=0, dupProp=0;
+    list.forEach(s=>{
+      if(byId.has(s.id)) dupStu++; else byId.add(s.id);
+      const nm=(s.name||"").trim(); if(nm) nameCount.set(nm,(nameCount.get(nm)||0)+1);
+      const pids=new Set(); (s.properties||[]).forEach(p=>{ if(pids.has(p.id)) dupProp++; else pids.add(p.id); });
+    });
+    if(dupStu){ r.items.push({txt:"班級「"+c.name+"」有 "+dupStu+" 筆重複學員（相同 id）", safe:true}); r.safeCount+=dupStu; }
+    if(dupProp){ r.items.push({txt:"班級「"+c.name+"」有 "+dupProp+" 筆重複物件（相同 id）", safe:true}); r.safeCount+=dupProp; }
+    nameCount.forEach((n,nm)=>{ if(n>1) r.items.push({txt:"班級「"+c.name+"」有同名學員「"+esc(nm)+"」"+n+" 筆（id 不同，需人工確認後刪除）", safe:false}); });
+  }
+  return r;
+}
+async function openDupCheck(){
+  if(isAssistant()) return;
+  document.getElementById("dupModal").classList.add("show");
+  document.getElementById("dupReport").textContent="掃描中…";
+  document.getElementById("dupCleanBtn").style.display="none";
+  const r=await dupScan();
+  renderDupReport(r);
+}
+function renderDupReport(r){
+  const box=document.getElementById("dupReport");
+  if(!r.items.length){ box.innerHTML='<div style="color:var(--brand);font-weight:700">✓ 沒有發現重複資料</div>'; document.getElementById("dupCleanBtn").style.display="none"; return; }
+  box.innerHTML='<ul style="margin:0;padding-left:20px;line-height:1.9">'+r.items.map(it=>'<li>'+(it.safe?'':'⚠ ')+esc(it.txt)+'</li>').join("")+'</ul>'+
+    (r.safeCount?'<div style="margin-top:12px;color:var(--muted);font-size:13px">可一鍵安全清除 '+r.safeCount+' 筆「相同 id」的重複（合併時會保留所有物件、不會刪到資料）。同名但 id 不同者需你自行開啟刪除多餘那筆。</div>':'<div style="margin-top:12px;color:var(--muted);font-size:13px">以上為「同名但 id 不同」，需人工確認，請自行開啟刪除多餘那筆。</div>');
+  document.getElementById("dupCleanBtn").style.display=r.safeCount?"":"none";
+}
+async function cleanDupSafe(){
+  if(!confirm("將清除所有「相同 id」的重複班級／學員／物件。\n合併重複學員時會保留其所有物件。要繼續嗎？")) return;
+  const s2=new Set(); const uniqC=[]; cohorts.forEach(c=>{ if(!s2.has(c.id)){s2.add(c.id);uniqC.push(c);} });
+  cohorts=uniqC;
+  for(const c of uniqC){
+    const list=await loadStudents(c.id);
+    const groups=new Map();
+    list.forEach(s=>{ const g=groups.get(s.id)||[]; g.push(s); groups.set(s.id,g); });
+    const out=[];
+    groups.forEach(g=>{
+      let base=g.reduce((a,b)=>_scoreStudent(b)>_scoreStudent(a)?b:a, g[0]);
+      const seenP=new Set(), props=[];
+      g.forEach(s=>(s.properties||[]).forEach(p=>{ if(!seenP.has(p.id)){seenP.add(p.id);props.push(p);} }));
+      base.properties=props;
+      out.push(base);
+    });
+    await sSet("students:"+c.id, JSON.stringify(out));
+  }
+  await saveCohorts();
+  students=await loadActiveStudents();
+  renderCohorts(); render();
+  const r=await dupScan(); renderDupReport(r);
+  toast("已清除相同 id 的重複資料");
+}
+function closeDupCheck(){ document.getElementById("dupModal").classList.remove("show"); }
 /* 主導物件總表 */
 const LEAD_COLS=[
   ["地址", r=>r.p.address||""],
@@ -2306,6 +2375,15 @@ function writePropertyFields(p){
   p.driveLink=g("rDrive").trim();
 }
 function setAutoStat(txt){ const e=document.getElementById("autoSaveStat"); if(e) e.textContent=txt; }
+// 以目前 renoRef 找出 {s,p}；若因重複記錄/ id 對不上而直接查不到，改用物件 id
+// 在所有學員中備援搜尋，並把 renoRef 修正到真正帶有此物件的那筆學員。
+function resolveReno(){
+  if(!renoRef) return null;
+  let s=students.find(x=>x.id===renoRef.sid);
+  let p=s&&(s.properties||[]).find(x=>x.id===renoRef.pid);
+  if(!p){ for(const st of students){ const pp=(st.properties||[]).find(x=>x.id===renoRef.pid); if(pp){ s=st; p=pp; renoRef.sid=st.id; break; } } }
+  return p?{s,p}:null;
+}
 let _drawerSaveTimer=null;
 // One debounced auto-save for whichever drawer is open. Records a per-record
 // undo point after each save so 復原/重做 steps through this record's changes.
@@ -2318,7 +2396,7 @@ function propAutoSave(){
   setAutoStat("編輯中…");
   _drawerSaveTimer=setTimeout(async ()=>{
     if(!renoRef) return;
-    const s=students.find(x=>x.id===renoRef.sid); const p=s&&(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p) return;
+    const r=resolveReno(); if(!r) return; const p=r.p;
     normalizeUnitFields(document.getElementById("dBody"));
     writePropertyFields(p);
     try{ await saveStudents(); recordHistory(); render();
@@ -2339,7 +2417,8 @@ function studentAutoSave(){
 }
 async function saveProperty(close){
   clearTimeout(_drawerSaveTimer);
-  const s=students.find(x=>x.id===renoRef.sid); const p=(s.properties||[]).find(x=>x.id===renoRef.pid); if(!p)return;
+  const r=resolveReno(); if(!r){ if(close) closeDrawer(); toast("找不到此物件（可能是重複的舊卡片），已關閉"); return; }
+  const s=r.s, p=r.p;
   normalizeUnitFields(document.getElementById("dBody"));
   writePropertyFields(p);
   const g=id=>{const e=document.getElementById(id);return e?e.value:"";};
@@ -2358,9 +2437,9 @@ async function saveProperty(close){
   else { setAutoStat("✓ 已儲存"); toast("已儲存，可繼續編輯"); }
 }
 async function deleteProperty(){
-  const s=students.find(x=>x.id===renoRef.sid); if(!s)return;
+  const r=resolveReno(); if(!r){ closeDrawer(); return; }
   if(!confirm("確定刪除此物件？"))return;
-  s.properties=(s.properties||[]).filter(x=>x.id!==renoRef.pid);
+  r.s.properties=(r.s.properties||[]).filter(x=>x.id!==renoRef.pid);
   await saveStudents(); closeDrawer(); render(); toast("已刪除物件");
 }
 
@@ -2547,7 +2626,7 @@ function restorePicked(inp){
 
 function esc(s){return(''+(s==null?"":s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 let toastT; function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),2200);}
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeDrawer();closeAdd();closeCohort();closeTagMgr();closePropModal();closeImport();closeCohortMgr();closeBulkTodo();closeLvr();closeLeadTable();}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeDrawer();closeAdd();closeCohort();closeTagMgr();closePropModal();closeImport();closeCohortMgr();closeBulkTodo();closeLvr();closeLeadTable();closeDupCheck();}});
 window.addEventListener("resize",()=>{ if(typeof fitTable==="function") fitTable(); });
 
 // Auto-save the property drawer as it is edited. Delegated on the stable #dBody
