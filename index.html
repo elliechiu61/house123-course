@@ -1560,8 +1560,12 @@ async function openStudentFrom(cohortId,studentId){
 }
 /* reno zone */
 function allProperties(){
-  const out=[];
-  students.forEach(s=>(s.properties||[]).forEach(p=>out.push({s,p})));
+  const out=[], seen=new Set();
+  students.forEach(s=>(s.properties||[]).forEach(p=>{
+    const k=(s.__cohort||"")+"|"+s.id+"|"+p.id;   // 同班級同學員同物件只算一次，避免重複卡片
+    if(seen.has(k)) return; seen.add(k);
+    out.push({s,p});
+  }));
   return out;
 }
 /* 主導物件總表 */
@@ -2140,8 +2144,12 @@ function ownerSelect(id,curId){
 }
 function openProperty(sid,pid,keepHist){
   if(isAssistant()){ toast("助教無法檢視物件資料"); return; }
-  const s=students.find(x=>String(x.id)===String(sid)); if(!s)return;
-  const p=(s.properties||[]).find(x=>String(x.id)===String(pid)); if(!p)return;
+  let s=students.find(x=>String(x.id)===String(sid));
+  let p=s&&(s.properties||[]).find(x=>String(x.id)===String(pid));
+  if(!p){ // 備援：直接用物件 id 在所有學員中找，避免因重複/ id 對不上而點不進去
+    for(const st of students){ const pp=(st.properties||[]).find(x=>String(x.id)===String(pid)); if(pp){ s=st; p=pp; break; } }
+  }
+  if(!s||!p){ toast("找不到這個物件（可能是重複的舊卡片）"); return; }
   renoRef={sid:s.id,pid:p.id}; selectedId=null;
   if(!keepHist) recStart('prop');
   const tx=p.taxes||{},l1=p.loan01||{},l4=p.loan04||{},rt=p.rent||{},ob=p.old||{};
