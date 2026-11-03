@@ -1605,16 +1605,9 @@ async function dupScan(){
   gByName.forEach((g,nm)=>{
     if(new Set(g.map(x=>x.cid)).size<2) return;              // 只看跨班
     if(new Set(g.map(x=>x.id)).size===1){
-      // 同名且同 id → 幾乎確定是系統複製留下的；保留物件最多（平手取班序最前）那筆
-      const keep=g.slice().sort((a,b)=> b.props-a.props || order(a.cid)-order(b.cid))[0];
-      const kills=g.filter(x=>x!==keep && x.props===0);       // 只清「空白」那筆，絕不刪有物件的
-      const manual=g.filter(x=>x!==keep && x.props>0);
-      if(kills.length){
-        r.items.push({txt:'學員「'+esc(nm)+'」同時出現在 '+g.map(x=>x.cName).join('、')+'（相同 id，系統複製）；保留「'+keep.cName+'」，清除 '+kills.map(x=>x.cName).join('、')+' 的空白重複', safe:true});
-        r.safeCount+=kills.length;
-        kills.forEach(x=>r._crossKills.push({cid:x.cid,id:x.id,name:nm}));
-      }
-      manual.forEach(x=> r.items.push({txt:'學員「'+esc(nm)+'」同時在「'+keep.cName+'」和「'+x.cName+'」且兩邊都有物件，需人工確認後處理', safe:false}) );
+      // 同名且同 id → 系統複製留下的；但「哪一班才是本尊」屬業務判斷，不自動刪，列為人工確認
+      const withP=g.filter(x=>x.props>0).map(x=>x.cName);
+      r.items.push({txt:'學員「'+esc(nm)+'」同時出現在 '+g.map(x=>x.cName).join('、')+'（相同 id，系統複製）'+(withP.length?('，物件在：'+withP.join('、')):'，兩邊都沒有物件')+'；請確認保留哪一班，用學員抽屜「搬移到別班」把物件併過去後，刪除多餘那筆', safe:false});
     }else{
       r.items.push({txt:'學員「'+esc(nm)+'」出現在多個班（'+g.map(x=>x.cName+'#'+x.id).join('、')+'），id 不同，請人工確認是否同一人', safe:false});
     }
