@@ -692,7 +692,7 @@ function renoRoleSelect(id,cur){
 let cohorts=[], activeCohort=null, students=[], tags=[];
 let view="list", sort={key:"name",dir:1};
 let filters={search:"",tag:"all",status:"all",prop:"all",mort:"all",region:"all",ready:0,price:"all",down:"all",todo:false};
-let selectedId=null, renoRef=null, propEdit=null, newTagColor=SWATCH[0];
+let selectedId=null, selUid=null, renoRef=null, propEdit=null, newTagColor=SWATCH[0];
 let selected=new Set();
 
 /* ============================================================
@@ -760,15 +760,17 @@ async function ensureUids(){
     if(ch) await sSet("students:"+c.id, JSON.stringify(list));
   }
 }
+/* 取目前抽屜開啟的學員：優先用永久學號 uid（跨班唯一、永遠抓對人），備援班內 id */
+function curStu(){ if(selUid){ const s=students.find(x=>x.uid===selUid); if(s) return s; } return selectedId!=null?(students.find(x=>x.id===selectedId)||null):null; }
 
 /* ---------- 復原 / 重做（單一筆記錄層級） ----------
    只作用在目前打開的那一筆（學員資料或物件資料）。逐步記錄該筆的變更，復原/重做
    只會還原那一筆，不會動到其他學員或物件。抽屜一關就結束、重開重來。 */
 let recHist=[], recIdx=-1, recKind=null, _recRef=null;   // recKind: 'student' | 'prop' | null
-function _recId(kind){ return kind==='prop' ? (renoRef?renoRef.sid+"/"+renoRef.pid:null) : (selectedId!=null?("s"+selectedId):null); }
+function _recId(kind){ return kind==='prop' ? (renoRef?((renoRef.ruid||renoRef.sid)+"/"+renoRef.pid):null) : (selUid?("s"+selUid):(selectedId!=null?("s"+selectedId):null)); }
 function _recSnap(){
-  if(recKind==='prop' && renoRef){ const s=students.find(x=>x.id===renoRef.sid); const p=s&&(s.properties||[]).find(x=>x.id===renoRef.pid); return p?JSON.stringify(p):null; }
-  if(recKind==='student' && selectedId!=null){ const s=students.find(x=>x.id===selectedId); return s?JSON.stringify(s):null; }
+  if(recKind==='prop' && renoRef){ const r=resolveReno(); return r?JSON.stringify(r.p):null; }
+  if(recKind==='student' && selectedId!=null){ const s=curStu(); return s?JSON.stringify(s):null; }
   return null;
 }
 // Start (or keep) the history for the record now shown. Re-opening the SAME
@@ -792,11 +794,11 @@ function recordHistory(){
 async function applyRecSnap(json){
   const obj=JSON.parse(json);
   if(recKind==='prop'){
-    const s=students.find(x=>x.id===renoRef.sid); if(!s) return;
-    const arr=s.properties||[]; const i=arr.findIndex(x=>x.id===renoRef.pid); if(i<0) return;
+    const r=resolveReno(); if(!r) return;
+    const arr=r.s.properties||[]; const i=arr.findIndex(x=>x.id===renoRef.pid); if(i<0) return;
     arr[i]=obj; await saveStudents(); render(); openProperty(renoRef.sid, renoRef.pid, true);
   } else if(recKind==='student'){
-    const i=students.findIndex(x=>x.id===selectedId); if(i<0) return;
+    const i=students.findIndex(x=> selUid? x.uid===selUid : x.id===selectedId); if(i<0) return;
     students[i]=obj; await saveStudents(); render(); openDrawer(selectedId, true);
   }
   updateRecUndoUI();
@@ -1235,7 +1237,7 @@ function collectDrawerFields(s){
   const av=g("dAge"); if(av!==undefined){ s.ageRaw=av; s.age=parseNum(av); }
 }
 async function addConsult(){
-  const s=students.find(x=>x.id===selectedId); if(!s)return; if(!guardEdit(s))return;
+  const s=curStu(); if(!s)return; if(!guardEdit(s))return;
   const content=document.getElementById("cContent").value.trim();
   if(!content){ toast("請輸入諮詢內容"); return; }
   collectDrawerFields(s);
@@ -1396,19 +1398,19 @@ function todoListHtml(s){
   return a.map(t=>'<div class="todoitem'+(t.done?" done":"")+'"><label><input type="checkbox" '+(t.done?"checked":"")+' onchange="toggleTodo(\''+t.id+'\')"><span>'+esc(t.text)+dueTag(t.due)+'</span></label><button class="tdel" title="刪除" onclick="deleteTodo(\''+t.id+'\')">\u2715</button></div>').join("");
 }
 async function addTodo(){
-  const s=students.find(x=>x.id===selectedId); if(!s)return;
+  const s=curStu(); if(!s)return;
   const inp=document.getElementById("dTodoNew"); const v=inp.value.trim(); if(!v){toast("請輸入待辦內容");return;}
   collectDrawerFields(s); s.todos=s.todos||[];
   s.todos.push({id:"td"+Date.now(),text:v,done:false,date:new Date().toISOString().slice(0,10)});
   await saveStudents(); openDrawer(s.id); toast("已新增待辦");
 }
 async function toggleTodo(tid){
-  const s=students.find(x=>x.id===selectedId); if(!s)return;
+  const s=curStu(); if(!s)return;
   const t=(s.todos||[]).find(x=>x.id===tid); if(!t)return; t.done=!t.done;
   collectDrawerFields(s); await saveStudents(); openDrawer(s.id);
 }
 async function deleteTodo(tid){
-  const s=students.find(x=>x.id===selectedId); if(!s)return;
+  const s=curStu(); if(!s)return;
   s.todos=(s.todos||[]).filter(x=>x.id!==tid);
   collectDrawerFields(s); await saveStudents(); openDrawer(s.id);
 }
@@ -1432,7 +1434,7 @@ function openTodoAdd(){
     ctx.innerHTML='物件：'+esc(p.address||"未填地址")+(p.registrant?'<br>登記人：'+esc(p.registrant):'');
     quick.innerHTML="";
   } else if(selectedId!=null){
-    const s=students.find(x=>x.id===selectedId); if(!s){ toast("找不到學員"); return; }
+    const s=curStu(); if(!s){ toast("找不到學員"); return; }
     todoAddKind="student";
     ctx.innerHTML='學員：'+esc(s.name);
     quick.innerHTML=TODO_QUICK.map(q=>'<button type="button" class="btag qk" onclick="document.getElementById(\'todoAddText\').value='+JSON.stringify(q)+'">快捷：'+esc(q)+'</button>').join("");
@@ -1450,7 +1452,7 @@ async function submitTodoAdd(){
     p.todos=p.todos||[]; p.todos.push({id:"pt"+Date.now(),text,due,done:false,date:today});
     await saveStudents(); closeTodoAdd(); openProperty(s.id,p.id); toast("已新增待辦");
   } else {
-    const s=students.find(x=>x.id===selectedId); if(!s)return;
+    const s=curStu(); if(!s)return;
     collectDrawerFields(s); s.todos=s.todos||[]; s.todos.push({id:"td"+Date.now(),text,due,done:false,date:today});
     await saveStudents(); closeTodoAdd(); openDrawer(s.id); toast("已新增待辦");
   }
@@ -1866,7 +1868,7 @@ function openDrawer(id,keepHist,cohort){
     const s0=(cohort!=null?students.find(x=>x.id===id&&x.__cohort===cohort):students.find(x=>x.id===id));
     if(s0&&s0.__cohort){ openStudentFromAll(s0.__cohort,id); return; }
   }
-  selectedId=id; renoRef=null;
+  selectedId=id; renoRef=null; { const _s=students.find(x=>x.id===id); selUid=_s?_s.uid:null; }
   const s=students.find(x=>x.id===id); if(!s)return;
   if(!keepHist) recStart('student');
   document.getElementById("dName").textContent=s.name;
@@ -1943,9 +1945,9 @@ function propRow(sid,p){
     '<button class="goreno" onclick="event.stopPropagation();openRenoNewTab(\''+sid+'\',\''+p.id+'\')">改建專區 →</button></div></div>';
 }
 function field(k,v){const blank=!v||!(''+v).trim();return '<div class="field"><div class="k">'+k+'</div><div class="v'+(blank?" blank":"")+'">'+(blank?"未填寫":esc(v))+'</div></div>';}
-function closeDrawer(){recEnd();document.getElementById("scrim").classList.remove("show");document.getElementById("drawer").classList.remove("show");selectedId=null;renoRef=null;if(refreshPending){refreshPending=false;remoteRefresh();}}
+function closeDrawer(){recEnd();document.getElementById("scrim").classList.remove("show");document.getElementById("drawer").classList.remove("show");selectedId=null;selUid=null;renoRef=null;if(refreshPending){refreshPending=false;remoteRefresh();}}
 async function saveDrawer(){
-  const s=students.find(x=>x.id===selectedId); if(!s)return; if(!guardEdit(s))return;
+  const s=curStu(); if(!s)return; if(!guardEdit(s))return;
   collectDrawerFields(s);
   const target=document.getElementById("dCohort").value;
   if(target && target!==activeCohort){
@@ -1956,7 +1958,7 @@ async function saveDrawer(){
     moved.id=(destList.reduce((m,x)=>Math.max(m,x.id||0),0)||0)+1;  // avoid id collision
     destList.push(moved);
     await sSet("students:"+target, JSON.stringify(destList));
-    students=students.filter(x=>x.id!==selectedId);
+    students=students.filter(x=> selUid? x.uid!==selUid : x.id!==selectedId);
     await saveStudents();
     selected.delete(selectedId);
     closeDrawer(); renderCohorts(); render();
@@ -1966,9 +1968,9 @@ async function saveDrawer(){
   await saveStudents(); closeDrawer(); render(); toast("已儲存 "+s.name+" 的進度");
 }
 async function deleteStudent(){
-  const s=students.find(x=>x.id===selectedId); if(!s)return; if(!guardEdit(s))return;
+  const s=curStu(); if(!s)return; if(!guardEdit(s))return;
   if(!confirm('確定刪除學員「'+s.name+'」？此動作無法復原。'))return;
-  students=students.filter(x=>x.id!==selectedId); await saveStudents(); closeDrawer(); render(); toast("已刪除 "+s.name);
+  students=students.filter(x=> selUid? x.uid!==selUid : x.id!==selectedId); await saveStudents(); closeDrawer(); render(); toast("已刪除 "+s.name);
 }
 
 /* property add/edit */
@@ -2266,7 +2268,7 @@ function openProperty(sid,pid,keepHist){
     for(const st of students){ const pp=(st.properties||[]).find(x=>String(x.id)===String(pid)); if(pp){ s=st; p=pp; break; } }
   }
   if(!s||!p){ toast("找不到這個物件（可能是重複的舊卡片）"); return; }
-  renoRef={sid:s.id,pid:p.id}; selectedId=null;
+  renoRef={sid:s.id,ruid:s.uid,pid:p.id}; selectedId=null; selUid=null;
   if(!keepHist) recStart('prop');
   const tx=p.taxes||{},l1=p.loan01||{},l4=p.loan04||{},rt=p.rent||{},ob=p.old||{};
   const has04=Object.values(l4).some(v=>v&&String(v).trim());   // 有週轉金才顯示科目04
@@ -2426,9 +2428,10 @@ function setAutoStat(txt){ const e=document.getElementById("autoSaveStat"); if(e
 // 在所有學員中備援搜尋，並把 renoRef 修正到真正帶有此物件的那筆學員。
 function resolveReno(){
   if(!renoRef) return null;
-  let s=students.find(x=>x.id===renoRef.sid);
+  let s = renoRef.ruid ? students.find(x=>x.uid===renoRef.ruid) : null;   // 先用永久學號抓對人
+  if(!s) s=students.find(x=>x.id===renoRef.sid);
   let p=s&&(s.properties||[]).find(x=>x.id===renoRef.pid);
-  if(!p){ for(const st of students){ const pp=(st.properties||[]).find(x=>x.id===renoRef.pid); if(pp){ s=st; p=pp; renoRef.sid=st.id; break; } } }
+  if(!p){ for(const st of students){ const pp=(st.properties||[]).find(x=>x.id===renoRef.pid); if(pp){ s=st; p=pp; renoRef.sid=st.id; renoRef.ruid=st.uid; break; } } }
   return p?{s,p}:null;
 }
 let _drawerSaveTimer=null;
@@ -2453,11 +2456,11 @@ function propAutoSave(){
 }
 function studentAutoSave(){
   if(selectedId==null) return;
-  const s0=students.find(x=>x.id===selectedId); if(s0&&!canEditStudent(s0)) return;   // 助教不能編輯他人
+  const s0=curStu(); if(s0&&!canEditStudent(s0)) return;   // 助教不能編輯他人
   clearTimeout(_drawerSaveTimer);
   _drawerSaveTimer=setTimeout(async ()=>{
     if(selectedId==null) return;
-    const s=students.find(x=>x.id===selectedId); if(!s) return; if(!canEditStudent(s)) return;
+    const s=curStu(); if(!s) return; if(!canEditStudent(s)) return;
     collectDrawerFields(s);                    // 班級搬移仍只在按「儲存變更」時處理
     try{ await saveStudents(); recordHistory(); }catch(e){}
   }, 900);
