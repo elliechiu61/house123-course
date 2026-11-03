@@ -749,6 +749,17 @@ async function remoteRefresh(){
   buildFlagChips(); renderCohorts(); render();
 }
 async function saveStudents(){ if(activeCohort==="__all__") return; await sSet("students:"+activeCohort, JSON.stringify(students)); }
+/* 永久學號 uid：全系統不重複、與班內 id 無關、搬班也不變，作為「找人」的身份錨點 */
+function _newUid(){ return 'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+/* 開機時補發：凡是沒有 uid（或極少數撞號）的學員，發給一個新學號。只加欄位，不動其他資料。 */
+async function ensureUids(){
+  const seen=new Set();
+  for(const c of cohorts){
+    const list=await loadStudents(c.id); let ch=false;
+    list.forEach(s=>{ if(!s.uid || seen.has(s.uid)){ s.uid=_newUid(); ch=true; } seen.add(s.uid); });
+    if(ch) await sSet("students:"+c.id, JSON.stringify(list));
+  }
+}
 
 /* ---------- 復原 / 重做（單一筆記錄層級） ----------
    只作用在目前打開的那一筆（學員資料或物件資料）。逐步記錄該筆的變更，復原/重做
@@ -847,6 +858,7 @@ async function startApp(){
     cohorts=[{id:"c1",name:"第一班"}]; activeCohort="c1";
     await sSet("students:c1",JSON.stringify([])); await saveCohorts();
   }
+  await ensureUids();
   students=await loadActiveStudents();
   buildRegionOptions(); buildStageOptions(); buildStatusFilterOptions(); renderCohorts(); buildFlagChips(); render();
   subscribeRealtime();
@@ -2498,7 +2510,7 @@ async function submitAdd(){
   const name=g("name"); if(!name){toast("請填寫姓名");return;}
   const ids=[]; document.querySelectorAll("#addTags .flagbtn.active").forEach(b=>ids.push(b.dataset.tag));
   const nextId=(students.reduce((m,s)=>Math.max(m,s.id),0)||0)+1;
-  students.push({id:nextId,name,currentCity:g("currentCity"),desiredCity:g("desiredCity"),price:g("price"),downPayment:g("downPayment"),decisionMaker:g("decisionMaker"),hasProperty:document.getElementById("add_hasProperty").value,hasMortgage:document.getElementById("add_hasMortgage").value,ageRaw:g("ageRaw"),age:parseNum(g("ageRaw")),job:g("job"),income:g("income"),readinessRaw:g("readinessRaw"),readiness:parseNum(g("readinessRaw")),action:g("action"),notes:g("notes"),tagIds:ids,properties:[],progressNote:"",privateCircle:g("privateCircle"),englishName:g("englishName"),createdBy:(currentUser&&currentUser.email)||""});
+  students.push({id:nextId,uid:_newUid(),name,currentCity:g("currentCity"),desiredCity:g("desiredCity"),price:g("price"),downPayment:g("downPayment"),decisionMaker:g("decisionMaker"),hasProperty:document.getElementById("add_hasProperty").value,hasMortgage:document.getElementById("add_hasMortgage").value,ageRaw:g("ageRaw"),age:parseNum(g("ageRaw")),job:g("job"),income:g("income"),readinessRaw:g("readinessRaw"),readiness:parseNum(g("readinessRaw")),action:g("action"),notes:g("notes"),tagIds:ids,properties:[],progressNote:"",privateCircle:g("privateCircle"),englishName:g("englishName"),createdBy:(currentUser&&currentUser.email)||""});
   await saveStudents(); closeAdd(); render(); toast("已新增學員 "+name);
 }
 
