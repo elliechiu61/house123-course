@@ -1244,7 +1244,7 @@ function renderTable(){
     const propCell=np?'<span class="stagepill">'+np+' 件</span>':'<span style="color:var(--muted)">—</span>';
     const pin=np?'<span class="pin">●</span>':'';
     const so=ssById(s.status); const statusCell=so?statusPill(so):'<span style="color:var(--muted)">—</span>';
-    const tr=document.createElement("tr"); tr.onclick=()=>openDrawer(s.id);
+    const tr=document.createElement("tr"); tr.onclick=()=>openDrawer(s.id,false,s.__cohort);
     const checked=selected.has(s.id)?" checked":"";
     const ro=canEditStudent(s)?"":" readonly";
     tr.innerHTML='<td class="selcol" onclick="event.stopPropagation()"><input type="checkbox" class="rowcheck"'+checked+' onclick="toggleSelect(event,'+s.id+')"></td>'+
@@ -1612,6 +1612,10 @@ async function dupScan(){
       r.items.push({txt:'學員「'+esc(nm)+'」出現在多個班（'+g.map(x=>x.cName+'#'+x.id).join('、')+'），id 不同，請人工確認是否同一人', safe:false});
     }
   });
+  // 4) 同一筆物件被掛在多個學員身上（物件被系統複製）；正確主人屬業務判斷，列為人工確認
+  const pidMap=new Map();
+  uniqC.forEach(c=>{ (lists[c.id]||[]).forEach(s=>{ (s.properties||[]).forEach(p=>{ const g=pidMap.get(p.id)||[]; g.push({who:c.name+'／'+(s.name||""), addr:p.address||""}); pidMap.set(p.id,g); }); }); });
+  pidMap.forEach((g)=>{ if(g.length>1) r.items.push({txt:'同一筆物件「'+esc(g[0].addr||"未填地址")+'」同時掛在 '+g.map(x=>esc(x.who)).join('、')+'，請確認正確主人後，從其餘學員移除這筆', safe:false}); });
   return r;
 }
 async function openDupCheck(){
@@ -1844,8 +1848,12 @@ function initAutoGrow(root){
 }
 
 /* student drawer */
-function openDrawer(id,keepHist){
-  if(activeCohort==="__all__"){ const s0=students.find(x=>x.id===id); if(s0&&s0.__cohort){ openStudentFromAll(s0.__cohort,id); return; } }
+function openDrawer(id,keepHist,cohort){
+  if(activeCohort==="__all__"){
+    // 「全部」檢視下各班 id 會重號，必須用「班級＋id」唯一定位，否則會開到別班的同號學員（資料寫回錯班＝複製）
+    const s0=(cohort!=null?students.find(x=>x.id===id&&x.__cohort===cohort):students.find(x=>x.id===id));
+    if(s0&&s0.__cohort){ openStudentFromAll(s0.__cohort,id); return; }
+  }
   selectedId=id; renoRef=null;
   const s=students.find(x=>x.id===id); if(!s)return;
   if(!keepHist) recStart('student');
