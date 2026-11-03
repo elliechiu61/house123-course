@@ -1579,22 +1579,46 @@ function allProperties(){
 /* ---------- 檢查/清除重複資料 ---------- */
 function _scoreStudent(s){ let n=0; for(const k in s){ if(k==="__cohort")continue; const v=s[k]; if(Array.isArray(v)) n+=v.length; else if(v!=null&&v!=="") n++; } return n; }
 async function dupScan(){
-  const r={items:[], safeCount:0};
+  const r={items:[], safeCount:0, _crossKills:[]};
+  // 1) 班級清單重複
   const seen=new Set(); let cohortDup=0; cohorts.forEach(c=>{ if(seen.has(c.id)) cohortDup++; else seen.add(c.id); });
   if(cohortDup){ r.items.push({txt:"班級清單有 "+cohortDup+" 筆重複（同一班級被列兩次）", safe:true}); r.safeCount+=cohortDup; }
   const uniqC=[]; const s2=new Set(); cohorts.forEach(c=>{ if(!s2.has(c.id)){s2.add(c.id);uniqC.push(c);} });
+  const lists={}; for(const c of uniqC){ lists[c.id]=await loadStudents(c.id); }
+  // 2) 同班重複：同 id 學員、同 id 物件、同名不同 id
   for(const c of uniqC){
-    const list=await loadStudents(c.id);
-    const byId=new Set(), nameCount=new Map(); let dupStu=0, dupProp=0;
+    const list=lists[c.id];
+    const byId=new Set(), nameMap=new Map(); let dupStu=0, dupProp=0;
     list.forEach(s=>{
       if(byId.has(s.id)) dupStu++; else byId.add(s.id);
-      const nm=(s.name||"").trim(); if(nm) nameCount.set(nm,(nameCount.get(nm)||0)+1);
+      const nm=(s.name||"").trim(); if(nm){ const g=nameMap.get(nm)||[]; g.push(s); nameMap.set(nm,g); }
       const pids=new Set(); (s.properties||[]).forEach(p=>{ if(pids.has(p.id)) dupProp++; else pids.add(p.id); });
     });
     if(dupStu){ r.items.push({txt:"班級「"+c.name+"」有 "+dupStu+" 筆重複學員（相同 id）", safe:true}); r.safeCount+=dupStu; }
     if(dupProp){ r.items.push({txt:"班級「"+c.name+"」有 "+dupProp+" 筆重複物件（相同 id）", safe:true}); r.safeCount+=dupProp; }
-    nameCount.forEach((n,nm)=>{ if(n>1) r.items.push({txt:"班級「"+c.name+"」有同名學員「"+esc(nm)+"」"+n+" 筆（id 不同，需人工確認後刪除）", safe:false}); });
+    nameMap.forEach((g,nm)=>{ if(g.length>1 && new Set(g.map(s=>s.id)).size>1) r.items.push({txt:"班級「"+c.name+"」有同名學員「"+esc(nm)+"」"+g.length+" 筆（id 不同，需人工確認後刪除）", safe:false}); });
   }
+  // 3) 跨班重複：同一人同時出現在不同班
+  const gByName=new Map();
+  uniqC.forEach(c=>{ (lists[c.id]||[]).forEach(s=>{ const nm=(s.name||"").trim(); if(!nm)return; const g=gByName.get(nm)||[]; g.push({cid:c.id,cName:c.name,id:s.id,props:(s.properties||[]).length}); gByName.set(nm,g); }); });
+  const order=cid=>uniqC.findIndex(x=>x.id===cid);
+  gByName.forEach((g,nm)=>{
+    if(new Set(g.map(x=>x.cid)).size<2) return;              // 只看跨班
+    if(new Set(g.map(x=>x.id)).size===1){
+      // 同名且同 id → 幾乎確定是系統複製留下的；保留物件最多（平手取班序最前）那筆
+      const keep=g.slice().sort((a,b)=> b.props-a.props || order(a.cid)-order(b.cid))[0];
+      const kills=g.filter(x=>x!==keep && x.props===0);       // 只清「空白」那筆，絕不刪有物件的
+      const manual=g.filter(x=>x!==keep && x.props>0);
+      if(kills.length){
+        r.items.push({txt:'學員「'+esc(nm)+'」同時出現在 '+g.map(x=>x.cName).join('、')+'（相同 id，系統複製）；保留「'+keep.cName+'」，清除 '+kills.map(x=>x.cName).join('、')+' 的空白重複', safe:true});
+        r.safeCount+=kills.length;
+        kills.forEach(x=>r._crossKills.push({cid:x.cid,id:x.id,name:nm}));
+      }
+      manual.forEach(x=> r.items.push({txt:'學員「'+esc(nm)+'」同時在「'+keep.cName+'」和「'+x.cName+'」且兩邊都有物件，需人工確認後處理', safe:false}) );
+    }else{
+      r.items.push({txt:'學員「'+esc(nm)+'」出現在多個班（'+g.map(x=>x.cName+'#'+x.id).join('、')+'），id 不同，請人工確認是否同一人', safe:false});
+    }
+  });
   return r;
 }
 async function openDupCheck(){
@@ -1613,9 +1637,12 @@ function renderDupReport(r){
   document.getElementById("dupCleanBtn").style.display=r.safeCount?"":"none";
 }
 async function cleanDupSafe(){
-  if(!confirm("將清除所有「相同 id」的重複班級／學員／物件。\n合併重複學員時會保留其所有物件。要繼續嗎？")) return;
+  const r0=await dupScan();
+  if(!r0.safeCount){ renderDupReport(r0); return; }
+  if(!confirm("將清除重複資料：\n・同班「相同 id」的重複學員／物件（合併時保留所有物件）\n・跨班「系統複製」留下的空白重複筆（只清物件=0 的那筆，絕不刪有物件的資料）\n要繼續嗎？")) return;
   const s2=new Set(); const uniqC=[]; cohorts.forEach(c=>{ if(!s2.has(c.id)){s2.add(c.id);uniqC.push(c);} });
   cohorts=uniqC;
+  const lists={};
   for(const c of uniqC){
     const list=await loadStudents(c.id);
     const groups=new Map();
@@ -1628,13 +1655,20 @@ async function cleanDupSafe(){
       base.properties=props;
       out.push(base);
     });
-    await sSet("students:"+c.id, JSON.stringify(out));
+    lists[c.id]=out;
   }
+  // 跨班：移除系統複製留下的空白重複筆（再次確認 物件=0 才刪）
+  (r0._crossKills||[]).forEach(k=>{
+    const list=lists[k.cid]; if(!list) return;
+    const idx=list.findIndex(s=>s.id===k.id && (s.name||"").trim()===k.name && (s.properties||[]).length===0);
+    if(idx>=0) list.splice(idx,1);
+  });
+  for(const c of uniqC){ await sSet("students:"+c.id, JSON.stringify(lists[c.id])); }
   await saveCohorts();
   students=await loadActiveStudents();
   renderCohorts(); render();
   const r=await dupScan(); renderDupReport(r);
-  toast("已清除相同 id 的重複資料");
+  toast("已清除重複資料");
 }
 function closeDupCheck(){ document.getElementById("dupModal").classList.remove("show"); }
 /* 主導物件總表 */
