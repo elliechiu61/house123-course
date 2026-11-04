@@ -748,7 +748,19 @@ async function remoteRefresh(){
   students=await loadActiveStudents();
   buildFlagChips(); renderCohorts(); render();
 }
-async function saveStudents(){ if(activeCohort==="__all__") return; await sSet("students:"+activeCohort, JSON.stringify(students)); }
+async function saveStudents(onlyCohort){
+  if(activeCohort==="__all__"){
+    // 「全部」檢視：依學員所屬班級(__cohort)分組，各自寫回正確班級；傳 onlyCohort 時只動那一班
+    const byC={};
+    for(const s of students){ const cid=s.__cohort; if(!cid) continue; if(onlyCohort&&cid!==onlyCohort) continue; (byC[cid]=byC[cid]||[]).push(s); }
+    for(const cid in byC){
+      const clean=byC[cid].map(s=>{ const o=Object.assign({},s); delete o.__cohort; return o; });
+      await sSet("students:"+cid, JSON.stringify(clean));
+    }
+    return;
+  }
+  await sSet("students:"+activeCohort, JSON.stringify(students));
+}
 /* 永久學號 uid：全系統不重複、與班內 id 無關、搬班也不變，作為「找人」的身份錨點 */
 function _newUid(){ return 'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 /* 開機時補發：凡是沒有 uid（或極少數撞號）的學員，發給一個新學號。只加欄位，不動其他資料。 */
@@ -1190,12 +1202,12 @@ function renderPropCell(s){
     return '<div class="propchip" title="前往物件改建專區" onclick="event.stopPropagation();gotoReno(\''+s.id+'\',\''+p.id+'\')"><span class="pa">'+esc(p.address||'未填地址')+'</span>'+hd+' '+st+'</div>';
   }).join('');
 }
-async function setPrivate(ev,sid){ ev.stopPropagation(); const s=students.find(x=>x.id===sid); if(!s)return; if(!guardEdit(s)){ renderTable(); return; } s.privateCircle=ev.target.value; await saveStudents(); }
-async function setEnglish(ev,sid){ ev.stopPropagation(); const s=students.find(x=>x.id===sid); if(!s)return; if(!guardEdit(s)){ renderTable(); return; } s.englishName=ev.target.value; await saveStudents(); }
+async function setPrivate(ev,uid){ ev.stopPropagation(); const s=students.find(x=>x.uid===uid); if(!s)return; if(!guardEdit(s)){ renderTable(); return; } s.privateCircle=ev.target.value; await saveStudents(s.__cohort); }
+async function setEnglish(ev,uid){ ev.stopPropagation(); const s=students.find(x=>x.uid===uid); if(!s)return; if(!guardEdit(s)){ renderTable(); return; } s.englishName=ev.target.value; await saveStudents(s.__cohort); }
 let statusPopSid=null;
-function openStatusPop(ev,sid){
+function openStatusPop(ev,uid){
   ev.stopPropagation();
-  const s=students.find(x=>x.id===sid); if(!s) return; if(!guardEdit(s)) return; statusPopSid=sid;
+  const s=students.find(x=>x.uid===uid); if(!s) return; if(!guardEdit(s)) return; statusPopSid=uid;
   const cur=s.status||"";
   const pop=document.getElementById("tagPop");
   const item=o=>'<div class="ti'+(o.key===cur?" cur":"")+'" onclick="setStatusSingle(\''+o.key+'\')"><span class="dot" style="background:'+o.color+'"></span>'+esc(o.label)+(o.key===cur?' ✓':'')+'</div>';
@@ -1219,8 +1231,8 @@ function positionPop(pop, anchorEl){
   pop.style.left=Math.max(margin,left)+"px"; pop.style.top=Math.max(margin,top)+"px";
 }
 async function setStatusSingle(key){
-  const s=students.find(x=>x.id===statusPopSid); if(!s){ closeTagPop(); return; }
-  s.status=key||""; closeTagPop(); await saveStudents(); render();
+  const s=students.find(x=>x.uid===statusPopSid); if(!s){ closeTagPop(); return; }
+  s.status=key||""; closeTagPop(); await saveStudents(s.__cohort); render();
   const o=ssById(key); toast(key?(s.name+" → "+(o?o.label:"")):(s.name+" 已清除狀態"));
 }
 function collectDrawerFields(s){
@@ -1263,10 +1275,10 @@ function renderTable(){
     const ro=canEditStudent(s)?"":" readonly";
     tr.innerHTML='<td class="selcol" onclick="event.stopPropagation()"><input type="checkbox" class="rowcheck"'+checked+' onclick="toggleSelect(event,'+s.id+')"></td>'+
       '<td><div class="name">'+esc(s.name)+pin+(((s.todos||[]).filter(t=>!t.done).length)?'<span class="todobadge" title="待辦">'+(s.todos||[]).filter(t=>!t.done).length+'</span>':'')+'</div></td>'+
-      '<td onclick="event.stopPropagation()"><input class="pcin" value="'+esc(s.englishName||"")+'" placeholder="—"'+ro+' onchange="setEnglish(event,'+s.id+')"></td>'+
-      '<td onclick="event.stopPropagation()"><input class="pcin" value="'+esc(s.privateCircle||"")+'" placeholder="—"'+ro+' onchange="setPrivate(event,'+s.id+')"></td>'+
-      '<td onclick="event.stopPropagation();openTagPop(event,'+s.id+')"><span class="tagcell" title="點擊變更">'+tags_html+'</span></td>'+
-      '<td onclick="event.stopPropagation();openStatusPop(event,'+s.id+')"><span class="tagcell" title="點擊變更狀態">'+statusCell+'</span></td>'+
+      '<td onclick="event.stopPropagation()"><input class="pcin" value="'+esc(s.englishName||"")+'" placeholder="—"'+ro+' onchange="setEnglish(event,\''+s.uid+'\')"></td>'+
+      '<td onclick="event.stopPropagation()"><input class="pcin" value="'+esc(s.privateCircle||"")+'" placeholder="—"'+ro+' onchange="setPrivate(event,\''+s.uid+'\')"></td>'+
+      '<td onclick="event.stopPropagation();openTagPop(event,\''+s.uid+'\')"><span class="tagcell" title="點擊變更">'+tags_html+'</span></td>'+
+      '<td onclick="event.stopPropagation();openStatusPop(event,\''+s.uid+'\')"><span class="tagcell" title="點擊變更狀態">'+statusCell+'</span></td>'+
       '<td class="cell-hide"><div class="cell-wrap" title="'+esc(s.currentCity)+'">'+esc(s.currentCity||"—")+'</div></td>'+
       '<td><div class="cell-wrap" title="'+esc(s.desiredCity)+'">'+esc(s.desiredCity||"—")+'</div></td>'+
       '<td class="cell-hide"><div class="price-wrap">'+esc(s.price||"—")+'</div></td>'+
@@ -1308,10 +1320,10 @@ function bindListScroll(){
 
 /* inline tag picker (single-select) */
 let tagPopSid=null;
-function openTagPop(ev,sid){
+function openTagPop(ev,uid){
   ev.stopPropagation();
-  const s=students.find(x=>x.id===sid); if(!s) return; if(!guardEdit(s)) return;
-  tagPopSid=sid;
+  const s=students.find(x=>x.uid===uid); if(!s) return; if(!guardEdit(s)) return;
+  tagPopSid=uid;
   const cur=(s.tagIds||[])[0]||"";
   const pop=document.getElementById("tagPop");
   pop.innerHTML=tags.map(t=>'<div class="ti'+(t.id===cur?" cur":"")+'" onclick="setTagSingle(\''+t.id+'\')"><span class="dot" style="background:'+t.color+'"></span>'+esc(t.name)+(t.id===cur?' ✓':'')+'</div>').join("")+
@@ -1321,11 +1333,11 @@ function openTagPop(ev,sid){
 }
 function closeTagPop(){ document.getElementById("tagPop").classList.remove("show"); tagPopSid=null; }
 async function setTagSingle(tagId){
-  const s=students.find(x=>x.id===tagPopSid); if(!s){ closeTagPop(); return; }
+  const s=students.find(x=>x.uid===tagPopSid); if(!s){ closeTagPop(); return; }
   s.tagIds = tagId ? [tagId] : [];
   const t=tagById(tagId);
   closeTagPop();
-  await saveStudents(); render();
+  await saveStudents(s.__cohort); render();
   toast(tagId ? (s.name+" → "+(t?t.name:"")) : (s.name+" 已清除標籤"));
 }
 document.addEventListener("click",()=>closeTagPop());
