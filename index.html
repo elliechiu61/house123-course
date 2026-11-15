@@ -799,7 +799,10 @@ async function ensureUids(){
   const seen=new Set();
   for(const c of cohorts){
     const list=await loadStudents(c.id); let ch=false;
-    list.forEach(s=>{ if(!s.uid || seen.has(s.uid)){ s.uid=_newUid(); ch=true; } seen.add(s.uid); });
+    list.forEach(s=>{
+      if(s.__ref) return;   // 客座參照：故意與原班本人共用同一 uid，不是重複，絕不可補發新號（否則參照會斷掉）
+      if(!s.uid || seen.has(s.uid)){ s.uid=_newUid(); ch=true; } seen.add(s.uid);
+    });
     if(ch) await sSet("students:"+c.id, JSON.stringify(list));
   }
 }
