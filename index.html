@@ -747,11 +747,13 @@ async function loadCohortResolved(cid){
   if(!raw.some(s=>s.__ref)) return raw;           // 無客座，走快路徑
   const idx={};
   for(const c of cohorts){ if(c.id===cid) continue; const l=await loadStudents(c.id); l.forEach(s=>{ if(!s.__ref && s.uid) idx[s.uid]={s,home:c.id}; }); }
-  const out=[];
+  const out=[]; let dangling=false;
   raw.forEach(s=>{
-    if(s.__ref){ const hit=idx[s.uid]; if(hit){ const g=Object.assign({},hit.s); g.__guest=true; g.__home=hit.home; if(s.id!=null) g.id=s.id; out.push(g); } /* 找不到本人(已刪)→略過這筆參照 */ }
+    if(s.__ref){ const hit=idx[s.uid]; if(hit){ const g=Object.assign({},hit.s); g.__guest=true; g.__home=hit.home; if(s.id!=null) g.id=s.id; out.push(g); } else { dangling=true; } /* 找不到本人(已刪/參照斷掉)→丟棄 */ }
     else out.push(s);
   });
+  // 自我修復：把指不到本人的壞參照從儲存清掉，徽章與列表就一致
+  if(dangling){ await sSet("students:"+cid, JSON.stringify(raw.filter(s=> !(s.__ref && !idx[s.uid])))); }
   return out;
 }
 async function loadActiveStudents(){ return activeCohort==="__all__" ? await loadAllCohortStudents() : await loadCohortResolved(activeCohort); }
