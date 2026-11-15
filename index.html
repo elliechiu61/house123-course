@@ -1291,14 +1291,20 @@ function collectDrawerFields(s){
   set("dJob","job");
   const av=g("dAge"); if(av!==undefined){ s.ageRaw=av; s.age=parseNum(av); }
 }
+let _consultBusy=false;
 async function addConsult(){
   const s=curStu(); if(!s)return; if(!guardEdit(s))return;
   const content=document.getElementById("cContent").value.trim();
   if(!content){ toast("請輸入諮詢內容"); return; }
-  collectDrawerFields(s);
-  s.consultations=s.consultations||[];
-  s.consultations.push({id:"k"+Date.now(),date:document.getElementById("cDate").value,form:document.getElementById("cForm").value,formOther:document.getElementById("cOther").value.trim(),content});
-  await saveStudents(); openDrawer(s.id); toast("已新增諮詢紀錄");
+  if(_consultBusy) return;              // 防連點：避免重複新增同一筆諮詢紀錄
+  _consultBusy=true;
+  try{
+    collectDrawerFields(s);
+    s.consultations=s.consultations||[];
+    s.consultations.push({id:"k"+Date.now(),date:document.getElementById("cDate").value,form:document.getElementById("cForm").value,formOther:document.getElementById("cOther").value.trim(),content});
+    await saveStudents();
+  } finally { _consultBusy=false; }
+  openDrawer(s.id); toast("已新增諮詢紀錄");
 }
 function renderTable(){
   const list=sorted(filtered());
@@ -2637,13 +2643,19 @@ function openAdd(){
 }
 function closeAdd(){document.getElementById("addModal").classList.remove("show");}
 function parseNum(str){const m=(str||"").match(/(\d+(\.\d+)?)/);return m?parseFloat(m[1]):null;}
+let _addBusy=false;
 async function submitAdd(){
   const g=id=>{const e=document.getElementById("add_"+id);return e?e.value.trim():"";};
   const name=g("name"); if(!name){toast("請填寫姓名");return;}
-  const ids=[]; document.querySelectorAll("#addTags .flagbtn.active").forEach(b=>ids.push(b.dataset.tag));
-  const nextId=(students.reduce((m,s)=>Math.max(m,s.id),0)||0)+1;
-  students.push({id:nextId,uid:_newUid(),name,currentCity:g("currentCity"),desiredCity:g("desiredCity"),price:g("price"),downPayment:g("downPayment"),decisionMaker:g("decisionMaker"),hasProperty:document.getElementById("add_hasProperty").value,hasMortgage:document.getElementById("add_hasMortgage").value,ageRaw:g("ageRaw"),age:parseNum(g("ageRaw")),job:g("job"),income:g("income"),readinessRaw:g("readinessRaw"),readiness:parseNum(g("readinessRaw")),action:g("action"),notes:g("notes"),tagIds:ids,properties:[],progressNote:"",privateCircle:g("privateCircle"),englishName:g("englishName"),createdBy:(currentUser&&currentUser.email)||""});
-  await saveStudents(); closeAdd(); render(); toast("已新增學員 "+name);
+  if(_addBusy) return;                  // 防連點：避免重複新增同一位學員
+  _addBusy=true;
+  try{
+    const ids=[]; document.querySelectorAll("#addTags .flagbtn.active").forEach(b=>ids.push(b.dataset.tag));
+    const nextId=(students.reduce((m,s)=>Math.max(m,s.id),0)||0)+1;
+    students.push({id:nextId,uid:_newUid(),name,currentCity:g("currentCity"),desiredCity:g("desiredCity"),price:g("price"),downPayment:g("downPayment"),decisionMaker:g("decisionMaker"),hasProperty:document.getElementById("add_hasProperty").value,hasMortgage:document.getElementById("add_hasMortgage").value,ageRaw:g("ageRaw"),age:parseNum(g("ageRaw")),job:g("job"),income:g("income"),readinessRaw:g("readinessRaw"),readiness:parseNum(g("readinessRaw")),action:g("action"),notes:g("notes"),tagIds:ids,properties:[],progressNote:"",privateCircle:g("privateCircle"),englishName:g("englishName"),createdBy:(currentUser&&currentUser.email)||""});
+    await saveStudents();
+  } finally { _addBusy=false; }
+  closeAdd(); render(); toast("已新增學員 "+name);
 }
 
 /* csv */
