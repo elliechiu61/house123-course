@@ -374,6 +374,7 @@
     <button class="btn admin-only" onclick="backupAll()">備份</button>
     <button class="btn admin-only" onclick="document.getElementById('restoreFile').click()">還原</button>
     <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restorePicked(this)">
+    <button class="btn admin-only" onclick="openLinkExisting()">＋ 加入既有學員</button>
     <button class="btn primary" onclick="openAdd()">＋ 新增學員</button>
   </div>
 
@@ -486,6 +487,13 @@
   <div class="mh">新增學員</div>
   <div class="mb" id="addFields"></div>
   <div class="mf"><button class="btn ghost" onclick="closeAdd()">取消</button><button class="btn primary" onclick="submitAdd()">新增</button></div>
+</div></div>
+
+<!-- Link existing students (加入既有學員，同一人多班共享) -->
+<div class="modal" id="linkModal"><div class="box" style="max-width:560px;width:560px">
+  <div class="mh" id="linkTitle">加入既有學員</div>
+  <div class="mb" id="linkBody"></div>
+  <div class="mf"><button class="btn ghost" onclick="closeLinkExisting()">取消</button><button class="btn primary" onclick="submitLinkExisting()">加入所選</button></div>
 </div></div>
 
 <!-- Add cohort modal -->
@@ -728,10 +736,25 @@ async function sSet(k,v){ const {error}=await supa.from("app_state").upsert({key
 async function loadStudents(cid){ const raw=await sGet("students:"+cid); return raw?migrate(JSON.parse(raw)):[]; }
 async function loadAllCohortStudents(){
   const out=[];
-  for(const c of cohorts){ const list=await loadStudents(c.id); list.forEach(s=>{ s.__cohort=c.id; out.push(s); }); }
+  // 客座參照(__ref)在「全部」不另外列一行：本人已經會從原班出現一次，避免同一人重複
+  for(const c of cohorts){ const list=await loadStudents(c.id); list.forEach(s=>{ if(s.__ref) return; s.__cohort=c.id; out.push(s); }); }
   return out;
 }
-async function loadActiveStudents(){ return activeCohort==="__all__" ? await loadAllCohortStudents() : await loadStudents(activeCohort); }
+/* 解析「客座學員」：某班存的是一筆參照 {__ref,uid,id}，本人資料仍在原班。載入時把參照換成原班本人的
+   複本並標記 __guest/__home，之後在本班的任何編輯都會同步寫回原班（同一個人，不是複製）。 */
+async function loadCohortResolved(cid){
+  const raw=await loadStudents(cid);
+  if(!raw.some(s=>s.__ref)) return raw;           // 無客座，走快路徑
+  const idx={};
+  for(const c of cohorts){ if(c.id===cid) continue; const l=await loadStudents(c.id); l.forEach(s=>{ if(!s.__ref && s.uid) idx[s.uid]={s,home:c.id}; }); }
+  const out=[];
+  raw.forEach(s=>{
+    if(s.__ref){ const hit=idx[s.uid]; if(hit){ const g=Object.assign({},hit.s); g.__guest=true; g.__home=hit.home; if(s.id!=null) g.id=s.id; out.push(g); } /* 找不到本人(已刪)→略過這筆參照 */ }
+    else out.push(s);
+  });
+  return out;
+}
+async function loadActiveStudents(){ return activeCohort==="__all__" ? await loadAllCohortStudents() : await loadCohortResolved(activeCohort); }
 
 /* realtime */
 let rtChannel=null, refreshPending=false, refreshTimer=null;
@@ -748,18 +771,26 @@ async function remoteRefresh(){
   students=await loadActiveStudents();
   buildFlagChips(); renderCohorts(); render();
 }
+/* 寫回前把內部標記欄位清掉（__cohort/__guest/__home/__ref…），避免污染儲存資料 */
+function _cleanStu(s){ const o=Object.assign({},s); ["__cohort","__guest","__home","__ref","__guestOf"].forEach(k=>delete o[k]); return o; }
 async function saveStudents(onlyCohort){
   if(activeCohort==="__all__"){
     // 「全部」檢視：依學員所屬班級(__cohort)分組，各自寫回正確班級；傳 onlyCohort 時只動那一班
     const byC={};
     for(const s of students){ const cid=s.__cohort; if(!cid) continue; if(onlyCohort&&cid!==onlyCohort) continue; (byC[cid]=byC[cid]||[]).push(s); }
-    for(const cid in byC){
-      const clean=byC[cid].map(s=>{ const o=Object.assign({},s); delete o.__cohort; return o; });
-      await sSet("students:"+cid, JSON.stringify(clean));
-    }
+    for(const cid in byC){ await sSet("students:"+cid, JSON.stringify(byC[cid].map(_cleanStu))); }
     return;
   }
-  await sSet("students:"+activeCohort, JSON.stringify(students));
+  // 單一班級：本班學員存完整資料，客座學員只存參照(__ref)；客座的任何編輯再寫回其原班（同一個人）
+  const arr=students.map(s=> s.__guest ? {__ref:true, uid:s.uid, id:s.id} : _cleanStu(s));
+  await sSet("students:"+activeCohort, JSON.stringify(arr));
+  const homes={};
+  students.forEach(s=>{ if(s.__guest&&s.__home) (homes[s.__home]=homes[s.__home]||[]).push(s); });
+  for(const hc in homes){
+    const list=await loadStudents(hc); let ch=false;
+    homes[hc].forEach(g=>{ const i=list.findIndex(x=>x.uid===g.uid); if(i>=0){ const keepId=list[i].id; list[i]=_cleanStu(g); list[i].id=keepId; ch=true; } });
+    if(ch) await sSet("students:"+hc, JSON.stringify(list));
+  }
 }
 /* 永久學號 uid：全系統不重複、與班內 id 無關、搬班也不變，作為「找人」的身份錨點 */
 function _newUid(){ return 'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
@@ -929,9 +960,11 @@ let dragCid=null;
 async function updateCohortCounts(){
   let total=0;
   for(const c of cohorts){
-    let n=c.id===activeCohort?students.length:(await loadStudents(c.id)).length;
-    total+=n;
-    const s=document.querySelector('[data-cnt="'+c.id+'"]'); if(s)s.textContent=n;
+    const raw = c.id===activeCohort ? students : (await loadStudents(c.id));
+    const members = raw.length;                                                   // 含客座：本班徽章
+    const reals = raw.filter(s=> c.id===activeCohort ? !s.__guest : !s.__ref).length;   // 本尊數：計入「全部」
+    total += reals;
+    const el=document.querySelector('[data-cnt="'+c.id+'"]'); if(el) el.textContent=members;
   }
   const allS=document.querySelector('[data-cnt="__all__"]'); if(allS) allS.textContent=total;
 }
@@ -1603,7 +1636,7 @@ function allProperties(){
   return out;
 }
 /* ---------- 檢查/清除重複資料 ---------- */
-function _scoreStudent(s){ let n=0; for(const k in s){ if(k==="__cohort")continue; const v=s[k]; if(Array.isArray(v)) n+=v.length; else if(v!=null&&v!=="") n++; } return n; }
+function _scoreStudent(s){ let n=0; for(const k in s){ if(k.indexOf("__")===0)continue; const v=s[k]; if(Array.isArray(v)) n+=v.length; else if(v!=null&&v!=="") n++; } return n; }
 async function dupScan(){
   const r={items:[], safeCount:0, _crossKills:[]};
   // 1) 班級清單重複
@@ -1616,6 +1649,7 @@ async function dupScan(){
     const list=lists[c.id];
     const byId=new Set(), nameMap=new Map(); let dupStu=0, dupProp=0;
     list.forEach(s=>{
+      if(s.__ref) return;   // 客座參照不列入重複檢查
       if(byId.has(s.id)) dupStu++; else byId.add(s.id);
       const nm=(s.name||"").trim(); if(nm){ const g=nameMap.get(nm)||[]; g.push(s); nameMap.set(nm,g); }
       const pids=new Set(); (s.properties||[]).forEach(p=>{ if(pids.has(p.id)) dupProp++; else pids.add(p.id); });
@@ -1626,7 +1660,7 @@ async function dupScan(){
   }
   // 3) 跨班重複：同一人同時出現在不同班
   const gByName=new Map();
-  uniqC.forEach(c=>{ (lists[c.id]||[]).forEach(s=>{ const nm=(s.name||"").trim(); if(!nm)return; const g=gByName.get(nm)||[]; g.push({cid:c.id,cName:c.name,id:s.id,props:(s.properties||[]).length}); gByName.set(nm,g); }); });
+  uniqC.forEach(c=>{ (lists[c.id]||[]).forEach(s=>{ if(s.__ref)return; const nm=(s.name||"").trim(); if(!nm)return; const g=gByName.get(nm)||[]; g.push({cid:c.id,cName:c.name,id:s.id,props:(s.properties||[]).length}); gByName.set(nm,g); }); });
   const order=cid=>uniqC.findIndex(x=>x.id===cid);
   gByName.forEach((g,nm)=>{
     if(new Set(g.map(x=>x.cid)).size<2) return;              // 只看跨班
@@ -1640,7 +1674,7 @@ async function dupScan(){
   });
   // 4) 同一筆物件被掛在多個學員身上（物件被系統複製）；正確主人屬業務判斷，列為人工確認
   const pidMap=new Map();
-  uniqC.forEach(c=>{ (lists[c.id]||[]).forEach(s=>{ (s.properties||[]).forEach(p=>{ const g=pidMap.get(p.id)||[]; g.push({who:c.name+'／'+(s.name||""), addr:p.address||""}); pidMap.set(p.id,g); }); }); });
+  uniqC.forEach(c=>{ (lists[c.id]||[]).forEach(s=>{ if(s.__ref)return; (s.properties||[]).forEach(p=>{ const g=pidMap.get(p.id)||[]; g.push({who:c.name+'／'+(s.name||""), addr:p.address||""}); pidMap.set(p.id,g); }); }); });
   pidMap.forEach((g)=>{ if(g.length>1) r.items.push({txt:'同一筆物件「'+esc(g[0].addr||"未填地址")+'」同時掛在 '+g.map(x=>esc(x.who)).join('、')+'，請確認正確主人後，從其餘學員移除這筆', safe:false}); });
   return r;
 }
@@ -1890,9 +1924,13 @@ function openDrawer(id,keepHist,cohort){
   const props=(s.properties||[]);
   const propHtml = props.length ? '<div class="plist">'+props.map(p=>propRow(s.id,p)).join("")+'</div>' : '';
   document.getElementById("dBody").innerHTML=
-    '<div class="track"><h4>班級</h4><select id="dCohort" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;color:var(--ink);font-weight:600">'+
-      cohorts.map(c=>'<option value="'+c.id+'"'+(c.id===activeCohort?' selected':'')+'>'+esc(c.name)+'</option>').join("")+
-      '</select><div style="color:var(--muted);font-size:12px;margin-top:6px">改成其他班級並按「儲存變更」，會將此學員（含物件與進度）搬移過去。</div></div>'+
+    '<div class="track"><h4>班級</h4>'+
+      (s.__guest
+        ? '<div style="background:var(--brand-soft);border:1px solid var(--brand);border-radius:9px;padding:10px 12px;color:var(--brand);font-size:13px;font-weight:600">此學員為<b>客座</b>（原班：<b>'+esc((cohorts.find(c=>c.id===s.__home)||{}).name||"？")+'</b>）。<br>他是同一個人，在這裡編輯任何資料都會<b>同步回原班</b>。要讓他離開此班，按下方「移出此班」。</div>'
+        : '<select id="dCohort" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;color:var(--ink);font-weight:600">'+
+          cohorts.map(c=>'<option value="'+c.id+'"'+(c.id===activeCohort?' selected':'')+'>'+esc(c.name)+'</option>').join("")+
+          '</select><div style="color:var(--muted);font-size:12px;margin-top:6px">改成其他班級並按「儲存變更」，會將此學員（含物件與進度）搬移過去。</div>')+
+      '</div>'+
     '<div class="track"><h4>聯絡資料</h4>'+
       '<div class="miniL">姓名</div><input class="din" id="dName2" value="'+esc(s.name||"")+'">'+
       '<div class="grid2" style="margin-top:8px"><div><div class="miniL">手機</div><input class="din" id="dPhone" value="'+esc(s.phone||"")+'"></div>'+
@@ -1937,7 +1975,10 @@ function openDrawer(id,keepHist,cohort){
   const editable=canEditStudent(s);
   const fab=document.querySelector(".todofab"); if(fab) fab.style.display=editable?"":"none";
   if(editable){
-    document.getElementById("dFoot").innerHTML='<button class="btn primary" onclick="saveDrawer()">儲存變更</button><button class="btn ghost" onclick="closeDrawer()">關閉</button><button class="btn" id="recUndo" title="復原這位學員的上一步變更" onclick="recUndo()" disabled>↶ 復原</button><button class="btn" id="recRedo" title="重做這位學員的下一步變更" onclick="recRedo()" disabled>↷ 重做</button><button class="btn del" style="margin-left:auto" onclick="deleteStudent()">刪除學員</button>';
+    const delBtn = s.__guest
+      ? '<button class="btn" style="margin-left:auto" onclick="unlinkGuest()">移出此班</button>'
+      : '<button class="btn del" style="margin-left:auto" onclick="deleteStudent()">刪除學員</button>';
+    document.getElementById("dFoot").innerHTML='<button class="btn primary" onclick="saveDrawer()">儲存變更</button><button class="btn ghost" onclick="closeDrawer()">關閉</button><button class="btn" id="recUndo" title="復原這位學員的上一步變更" onclick="recUndo()" disabled>↶ 復原</button><button class="btn" id="recRedo" title="重做這位學員的下一步變更" onclick="recRedo()" disabled>↷ 重做</button>'+delBtn;
   }else{
     // 助教檢視他人學員：唯讀
     document.getElementById("dMeta").innerHTML=(document.getElementById("dMeta").textContent||"")+'<span class="robadge">唯讀（僅能檢視）</span>';
@@ -1961,7 +2002,7 @@ function closeDrawer(){recEnd();document.getElementById("scrim").classList.remov
 async function saveDrawer(){
   const s=curStu(); if(!s)return; if(!guardEdit(s))return;
   collectDrawerFields(s);
-  const target=document.getElementById("dCohort").value;
+  const dc=document.getElementById("dCohort"); const target=dc?dc.value:activeCohort;
   if(target && target!==activeCohort){
     const tc=cohorts.find(c=>c.id===target);
     if(!confirm('確定將「'+s.name+'」搬移到「'+(tc?tc.name:"")+'」？\n該學員的物件與進度會一併移過去。')){ return; }
@@ -1981,8 +2022,21 @@ async function saveDrawer(){
 }
 async function deleteStudent(){
   const s=curStu(); if(!s)return; if(!guardEdit(s))return;
+  if(s.__guest){ return unlinkGuest(); }   // 客座：只移出本班，不刪本人
   if(!confirm('確定刪除學員「'+s.name+'」？此動作無法復原。'))return;
   students=students.filter(x=> selUid? x.uid!==selUid : x.id!==selectedId); await saveStudents(); closeDrawer(); render(); toast("已刪除 "+s.name);
+}
+/* 把客座學員移出目前班級：只刪掉本班的參照，原班本人完全保留 */
+async function unlinkGuest(){
+  const s=curStu(); if(!s||!s.__guest) return;
+  const cn=(cohorts.find(c=>c.id===activeCohort)||{}).name||"本班";
+  const hn=(cohorts.find(c=>c.id===s.__home)||{}).name||"原班";
+  if(!confirm('把「'+s.name+'」移出「'+cn+'」？\n只會解除與本班的關聯，「'+hn+'」的本人資料完全保留。')) return;
+  const raw=await loadStudents(activeCohort);
+  await sSet("students:"+activeCohort, JSON.stringify(raw.filter(x=> !(x.__ref && x.uid===s.uid))));
+  students=students.filter(x=> x.uid!==s.uid);
+  closeDrawer(); renderCohorts(); render();
+  toast("已將 "+s.name+" 移出「"+cn+"」（原班保留）");
 }
 
 /* property add/edit */
@@ -2507,6 +2561,53 @@ async function deleteProperty(){
 
 /* add student */
 const ADD_FIELDS=[["name","姓名",true],["desiredCity","希望購入城市／區域"],["price","適合總價"],["downPayment","可運用自備款"],["currentCity","目前居住城市／區域"],["decisionMaker","共同決策者"],["job","工作"],["income","收入"],["ageRaw","年齡"],["readinessRaw","準備度（如 8分/10分）"],["action","下一步行動","","ta"],["notes","備註","","ta"]];
+/* ---------- 加入既有學員：讓第一班/第二班等既有學員「同一個人」也出現在本班（非複製） ---------- */
+let _linkPick=new Set(), _linkCands=[];
+async function openLinkExisting(){
+  if(isAssistant()){ toast("助教無法加入既有學員"); return; }
+  if(activeCohort==="__all__"){ toast("「全部」為總覽檢視，請先切到指定班級再加入既有學員"); return; }
+  _linkPick=new Set();
+  const hereUids=new Set(students.map(s=>s.uid));
+  _linkCands=[];
+  for(const c of cohorts){
+    if(c.id===activeCohort) continue;
+    const l=await loadStudents(c.id);
+    l.forEach(s=>{ if(s.__ref||!s.uid||hereUids.has(s.uid)) return; _linkCands.push({uid:s.uid,name:s.name||"(未命名)",eng:s.englishName||"",cohort:c.name}); });
+  }
+  _linkCands.sort((a,b)=>(a.cohort+a.name).localeCompare(b.cohort+b.name,"zh-Hant"));
+  const cn=(cohorts.find(c=>c.id===activeCohort)||{}).name||"本班";
+  document.getElementById("linkTitle").textContent='加入既有學員到「'+cn+'」';
+  document.getElementById("linkBody").innerHTML=
+    '<div style="color:var(--muted);font-size:13px;margin-bottom:10px">勾選的學員會<b>同時出現</b>在「'+esc(cn)+'」，但仍是<b>同一個人</b>（不是複製一筆）。在任一班編輯都會同步更新。</div>'+
+    '<input id="linkSearch" placeholder="搜尋姓名、英文名…" oninput="renderLinkList()" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin-bottom:10px">'+
+    '<div id="linkList" style="max-height:52vh;overflow:auto;border:1px solid var(--line-soft);border-radius:9px"></div>';
+  document.getElementById("linkModal").classList.add("show");
+  renderLinkList();
+}
+function closeLinkExisting(){ document.getElementById("linkModal").classList.remove("show"); }
+function renderLinkList(){
+  const sv=document.getElementById("linkSearch"); const q=(sv?sv.value:"").trim().toLowerCase();
+  const el=document.getElementById("linkList"); if(!el) return;
+  if(!_linkCands.length){ el.innerHTML='<div style="color:var(--muted);padding:14px">沒有可加入的學員：其他班級還沒有人，或他們都已經在本班了。</div>'; return; }
+  const list=_linkCands.filter(c=> !q || c.name.toLowerCase().includes(q) || (c.eng||"").toLowerCase().includes(q));
+  if(!list.length){ el.innerHTML='<div style="color:var(--muted);padding:14px">找不到符合「'+esc(q)+'」的學員。</div>'; return; }
+  el.innerHTML=list.map(c=>'<label style="display:flex;align-items:center;gap:10px;padding:9px 11px;border-bottom:1px solid var(--line-soft);cursor:pointer">'+
+    '<input type="checkbox" '+(_linkPick.has(c.uid)?'checked':'')+' onchange="toggleLinkPick(\''+c.uid+'\',this.checked)">'+
+    '<span style="font-weight:700">'+esc(c.name)+'</span>'+(c.eng?'<span style="color:var(--muted);font-size:12px">'+esc(c.eng)+'</span>':'')+
+    '<span style="margin-left:auto;color:var(--muted);font-size:12px">'+esc(c.cohort)+'</span></label>').join("");
+}
+function toggleLinkPick(uid,on){ if(on)_linkPick.add(uid); else _linkPick.delete(uid); }
+async function submitLinkExisting(){
+  if(!_linkPick.size){ toast("請先勾選要加入的學員"); return; }
+  const raw=await loadStudents(activeCohort);
+  const have=new Set(raw.map(s=>s.uid));
+  let nextId=(raw.reduce((m,s)=>Math.max(m,s.id||0),0)||0)+1, added=0;
+  _linkPick.forEach(uid=>{ if(have.has(uid)) return; raw.push({__ref:true,uid,id:nextId++}); added++; });
+  await sSet("students:"+activeCohort, JSON.stringify(raw));
+  students=await loadActiveStudents();
+  closeLinkExisting(); renderCohorts(); render();
+  toast(added?("已加入 "+added+" 位既有學員"):"所選學員已在本班");
+}
 function openAdd(){
   if(activeCohort==="__all__"){ toast("「全部」為總覽檢視，請先切到指定班級再新增學員"); return; }
   document.getElementById("addFields").innerHTML=
