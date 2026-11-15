@@ -934,13 +934,13 @@ function renderCohorts(){
   const allB=document.createElement("button");
   allB.className="ctab"+(activeCohort==="__all__"?" active":"");
   allB.onclick=()=>{ switchCohort("__all__"); };
-  allB.innerHTML='全部 <span class="cnt" data-cnt="__all__"></span>';
+  allB.innerHTML='全部 <span class="cnt" data-cnt="__all__">'+(cohortCountCache.__all__!=null?cohortCountCache.__all__:'')+'</span>';
   el.appendChild(allB);
   cohorts.forEach(c=>{
     const b=document.createElement("button");
     b.className="ctab"+(c.id===activeCohort?" active":"");
     b.onclick=()=>{ if(!b.dataset.dragged) switchCohort(c.id); };
-    b.innerHTML=esc(c.name)+' <span class="cnt" data-cnt="'+c.id+'"></span>';
+    b.innerHTML=esc(c.name)+' <span class="cnt" data-cnt="'+c.id+'">'+(cohortCountCache[c.id]!=null?cohortCountCache[c.id]:'')+'</span>';
     b.draggable=true; b.dataset.cid=c.id;
     b.addEventListener("dragstart",e=>{ dragCid=c.id; b.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; try{e.dataTransfer.setData("text/plain",c.id);}catch(err){} });
     b.addEventListener("dragend",()=>{ b.classList.remove("dragging"); document.querySelectorAll(".ctab").forEach(x=>x.classList.remove("dropzone")); setTimeout(()=>{delete b.dataset.dragged;},50); });
@@ -962,8 +962,8 @@ function renderCohorts(){
   el.appendChild(add); updateCohortCounts();
 }
 let dragCid=null;
-let _cntTimer=null;
-// 去抖：切換班級時 renderCohorts 與 render 會各呼叫一次，合併成只算最後一次，避免徽章數字閃動
+let _cntTimer=null, cohortCountCache={};
+// 去抖 + 快取：班級列用快取立刻帶數字出現（不閃），背景重算只在數字真的變了才動 DOM
 function updateCohortCounts(){ clearTimeout(_cntTimer); _cntTimer=setTimeout(_doCohortCounts,60); }
 async function _doCohortCounts(){
   let total=0;
@@ -972,9 +972,11 @@ async function _doCohortCounts(){
     const members = raw.length;                                                   // 含客座：本班徽章
     const reals = raw.filter(s=> c.id===activeCohort ? !s.__guest : !s.__ref).length;   // 本尊數：計入「全部」
     total += reals;
-    const el=document.querySelector('[data-cnt="'+c.id+'"]'); if(el) el.textContent=members;
+    cohortCountCache[c.id]=members;
+    const el=document.querySelector('[data-cnt="'+c.id+'"]'); if(el && el.textContent!==String(members)) el.textContent=members;
   }
-  const allS=document.querySelector('[data-cnt="__all__"]'); if(allS) allS.textContent=total;
+  cohortCountCache.__all__=total;
+  const allS=document.querySelector('[data-cnt="__all__"]'); if(allS && allS.textContent!==String(total)) allS.textContent=total;
 }
 async function switchCohort(cid){
   activeCohort=cid; students=await loadActiveStudents(); await sSet("activeCohort",cid);
