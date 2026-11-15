@@ -962,7 +962,10 @@ function renderCohorts(){
   el.appendChild(add); updateCohortCounts();
 }
 let dragCid=null;
-async function updateCohortCounts(){
+let _cntTimer=null;
+// 去抖：切換班級時 renderCohorts 與 render 會各呼叫一次，合併成只算最後一次，避免徽章數字閃動
+function updateCohortCounts(){ clearTimeout(_cntTimer); _cntTimer=setTimeout(_doCohortCounts,60); }
+async function _doCohortCounts(){
   let total=0;
   for(const c of cohorts){
     const raw = c.id===activeCohort ? students : (await loadStudents(c.id));
